@@ -20,6 +20,8 @@ const USER_NAMES: Record<string, string> = {
 
 const PLATFORMS = [
   { pattern: /\bIOS\b/gi,               label: 'iOS',        color: 'bg-sky-100 text-sky-700 border-sky-200' },
+  { pattern: /\bSmartTV\b|סמארט טיוי|סמארט TV/gi,        label: 'SmartTV',   color: 'bg-purple-100 text-purple-700 border-purple-200' },
+  { pattern: /\bAppleTV\b|אפל טיוי|אפל TV/gi,            label: 'AppleTV',   color: 'bg-slate-100 text-slate-700 border-slate-200' },
   { pattern: /\bAndroidTV\b|אנדרואיד טיוי|אנדרואיד TV/gi, label: 'AndroidTV', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
   { pattern: /\bAndroid\b|אנדרואיד/gi,  label: 'Android',    color: 'bg-green-100 text-green-700 border-green-200' },
   { pattern: /רספונסיב|responsive/gi,   label: 'Responsive', color: 'bg-violet-100 text-violet-700 border-violet-200' },
@@ -27,6 +29,8 @@ const PLATFORMS = [
   { pattern: /\bWEM\b|\bwem\b/g,        label: 'WEM',        color: 'bg-amber-100 text-amber-700 border-amber-200' },
   { pattern: /\bDOMO\b|\bdomo\b/g,      label: 'DOMO',       color: 'bg-rose-100 text-rose-700 border-rose-200' },
   { pattern: /\bBQ\b|\bbq\b/g,          label: 'BQ',         color: 'bg-teal-100 text-teal-700 border-teal-200' },
+  { pattern: /\bBackend\b|ב?בקאנד/gi,   label: 'Backend',    color: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
+  { pattern: /\bWeb(?!\s+[Vv]iews)\b|וובי?/gi, label: 'Web',   color: 'bg-cyan-100 text-cyan-700 border-cyan-200' },
 ];
 
 const VERSION_RE = /\b(\d+\.\d+(?:\.\d+)?)\b/g;
@@ -128,7 +132,7 @@ export default function DeployedMessagesWidget({ filter }: { filter: string }) {
   const allPlatforms = useMemo(() => {
     const set = new Set<string>();
     messagesWithTags.forEach(m => m.platforms.forEach(p => set.add(p)));
-    return [...set];
+    return [...set].sort((a, b) => a.localeCompare(b));
   }, [messagesWithTags]);
 
   const filtered = useMemo(() => {
@@ -242,7 +246,7 @@ export default function DeployedMessagesWidget({ filter }: { filter: string }) {
             >
               <option value="">All Versions</option>
               {allVersions.map(v => (
-                <option key={v} value={v}>v{v}</option>
+                <option key={v} value={v}>{v}</option>
               ))}
             </select>
             <ChevronDown className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
@@ -323,7 +327,7 @@ export default function DeployedMessagesWidget({ filter }: { filter: string }) {
                                       : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 hover:border-indigo-300 hover:shadow-sm'
                                   }`}
                                 >
-                                  v{v}
+                                  {v}
                                 </button>
                               ))}
                               {msg.platforms.map(p => (
