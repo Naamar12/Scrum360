@@ -15,6 +15,7 @@ import ReleaseCubesWidget from './components/ReleaseCubesWidget';
 import StuckTasksModal from './components/StuckTasksModal';
 import NewItemsModal from './components/NewItemsModal';
 import MasterPrompt from './components/MasterPrompt';
+import SprintBriefingWidget from './components/SprintBriefingWidget';
 import DeployedMessagesWidget from './components/DeployedMessagesWidget';
 
 function cn(...inputs: ClassValue[]) {
@@ -56,7 +57,7 @@ const slackMentions = [
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'master'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'master' | 'briefing'>('dashboard');
   const [filter, setFilter] = useState('v1');
   const [burndownData, setBurndownData] = useState(defaultBurndownData);
   const [issues, setIssues] = useState<JiraIssue[]>([]);
@@ -201,14 +202,23 @@ export default function App() {
               >
                 Dashboard
               </button>
-              <button 
+              <button
                 onClick={() => setActiveTab('master')}
                 className={cn(
-                  "px-3 py-1.5 text-sm font-medium rounded-md transition-colors", 
+                  "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
                   activeTab === 'master' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
                 )}
               >
                 Master Prompt
+              </button>
+              <button
+                onClick={() => setActiveTab('briefing')}
+                className={cn(
+                  "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+                  activeTab === 'briefing' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                )}
+              >
+                Sprint Briefing
               </button>
             </nav>
           </div>
@@ -450,6 +460,8 @@ export default function App() {
 
 
           </>
+        ) : activeTab === 'briefing' ? (
+          <SprintBriefingWidget issues={issues} activeSprintName={activeSprintName} />
         ) : (
           <MasterPrompt />
         )}
