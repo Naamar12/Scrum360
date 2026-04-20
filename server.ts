@@ -3,7 +3,7 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from 'url';
-import { GoogleGenAI } from '@google/genai';
+import Anthropic from '@anthropic-ai/sdk';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -421,12 +421,12 @@ async function startServer() {
     }
   });
 
-  // Sprint Briefing: convert SM free-text + sprint issues into per-developer instructions via Gemini
+  // Sprint Briefing: convert SM free-text + sprint issues into per-developer instructions via Claude
   app.post("/api/sprint-briefing", async (req, res) => {
-    const { GEMINI_API_KEY, JIRA_DOMAIN } = process.env;
+    const { ANTHROPIC_API_KEY, JIRA_DOMAIN } = process.env;
 
-    if (!GEMINI_API_KEY) {
-      return res.status(503).json({ error: 'GEMINI_API_KEY not configured' });
+    if (!ANTHROPIC_API_KEY) {
+      return res.status(503).json({ error: 'ANTHROPIC_API_KEY not configured' });
     }
 
     const { freeText, issues } = req.body;
@@ -452,16 +452,21 @@ async function startServer() {
       ? `For each task key (e.g. ABC-123), create a Markdown link: [Summary](${jiraBaseUrl}/ABC-123)`
       : 'Jira base URL not configured — list task keys as plain text without links.';
 
-    const prompt = `You are a Scrum Master assistant. Given free-text notes from a Sprint Planning session and a list of active Jira sprint issues, generate clear, action-oriented, priority-ordered work instructions for each developer — in Markdown.
-
-## Active Sprint Issues (key | type | assignee | status | summary):
+    const userContent = `## Active Sprint Issues (key | type | assignee | status | summary):
 ${activeIssues || '(none provided)'}
 
 ## Jira Links:
 ${linkNote}
 
 ## Scrum Master Notes:
-${freeText}
+${freeText}`;
+
+    try {
+      const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+      const stream = anthropic.messages.stream({
+        model: 'claude-opus-4-7',
+        max_tokens: 4096,
+        system: `You are a Scrum Master assistant. Given free-text notes from a Sprint Planning session and a list of active Jira sprint issues, generate clear, action-oriented, priority-ordered work instructions for each developer — in Markdown.
 
 ## Output format — one section per developer:
 
@@ -485,17 +490,14 @@ Rules:
 - Match developer names from the SM notes and from the assignee field in the issues list.
 - Infer task priorities from the SM notes; default to issue order if not specified.
 - Write in the same language the SM used (Hebrew, English, or mixed).
-- Output clean Markdown only — no preamble, no explanation outside the sections.`;
-
-    try {
-      const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-      const result = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
-        contents: prompt,
+- Output clean Markdown only — no preamble, no explanation outside the sections.`,
+        messages: [{ role: 'user', content: userContent }],
       });
-      res.json({ markdown: result.text ?? '' });
+      const result = await stream.finalMessage();
+      const text = result.content.find((b: any) => b.type === 'text')?.text ?? '';
+      res.json({ markdown: text });
     } catch (error: any) {
-      console.error('Gemini sprint-briefing error:', error);
+      console.error('Claude sprint-briefing error:', error);
       res.status(500).json({ error: error.message || 'Failed to generate briefing' });
     }
   });
