@@ -188,7 +188,7 @@ export default function App() {
               <div className="bg-indigo-600 p-2 rounded-lg">
                 <LayoutDashboard className="w-5 h-5 text-white" />
               </div>
-              <h1 className="text-xl font-semibold tracking-tight text-slate-900">Scrum Master 360</h1>
+              <h1 className="text-xl font-semibold tracking-tight text-slate-900">Scrum360</h1>
             </div>
             
             <nav className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
