@@ -8,6 +8,15 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const isCreatedToday = (dateString?: string) => {
+  if (!dateString) return false;
+  const date = new Date(dateString);
+  const today = new Date();
+  return date.getDate() === today.getDate() &&
+    date.getMonth() === today.getMonth() &&
+    date.getFullYear() === today.getFullYear();
+};
+
 interface StuckTasksModalProps {
   issues: JiraIssue[];
   thresholdHours: number;
@@ -116,7 +125,10 @@ function ParentStoryRow({ parentKey, parentGroup }: { parentKey: string, parentG
                         className="group flex flex-col"
                       >
                         <span className="text-xs font-mono text-slate-500 group-hover:text-rose-600 transition-colors">{task.key}</span>
-                        <span className="text-sm font-medium text-slate-900 group-hover:text-rose-600 transition-colors flex items-center gap-1 mt-0.5">
+                        <span className="text-sm font-medium text-slate-900 group-hover:text-rose-600 transition-colors flex items-center gap-1.5 mt-0.5">
+                          {isCreatedToday(task.createdDate) && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">New</span>
+                          )}
                           {task.summary}
                           <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </span>
