@@ -36,9 +36,21 @@ const TYPE_OPTIONS: { type: string; label: string; icon: React.ReactNode }[] = [
 function TypePicker({ current, onChange, isEmpty }: { current?: string; onChange: (t: string | undefined) => void; isEmpty?: boolean }) {
   const [open, setOpen] = useState(false);
   const cat = issueCategory(current);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => { document.removeEventListener('pointerdown', onPointerDown); document.removeEventListener('keydown', onKeyDown); };
+  }, [open]);
 
   return (
-    <div className="relative shrink-0">
+    <div ref={ref} className="relative shrink-0">
       <button
         onClick={() => setOpen(v => !v)}
         className={`flex items-center justify-center w-4 h-4 rounded transition-opacity ${cat ? 'opacity-100' : isEmpty ? 'opacity-30 hover:opacity-70' : 'opacity-0 group-hover/item:opacity-60 hover:!opacity-100'}`}
