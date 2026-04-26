@@ -8,7 +8,17 @@ interface Props {
 }
 
 interface CardItem { id: number; text: string; issueType?: string; }
-let nextId = 1;
+let nextId = (() => {
+  try {
+    const raw = localStorage.getItem('sprint-briefing-v3');
+    if (raw) {
+      const data = JSON.parse(raw) as { cards?: Record<string, { items?: { id: number }[] }> };
+      const ids = Object.values(data.cards ?? {}).flatMap(c => (c.items ?? []).map(i => i.id));
+      if (ids.length) return Math.max(...ids) + 1;
+    }
+  } catch {}
+  return 1;
+})();
 function makeItem(text = '', issueType?: string): CardItem { return { id: nextId++, text, issueType }; }
 
 function issueCategory(type?: string): 'story' | 'task' | 'bug' | null {
@@ -53,7 +63,7 @@ function TypePicker({ current, onChange, isEmpty }: { current?: string; onChange
     <div ref={ref} className="relative shrink-0">
       <button
         onClick={() => setOpen(v => !v)}
-        className={`flex items-center justify-center w-4 h-4 rounded transition-opacity ${cat ? 'opacity-100' : isEmpty ? 'opacity-30 hover:opacity-70' : 'opacity-0 group-hover/item:opacity-60 hover:!opacity-100'}`}
+        className={`flex items-center justify-center w-4 h-4 rounded transition-opacity ${cat ? 'opacity-100' : 'opacity-60 hover:opacity-100'}`}
         title="בחר סוג"
         tabIndex={-1}
       >
