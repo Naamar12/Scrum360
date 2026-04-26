@@ -245,11 +245,18 @@ function BacklogImportPopup({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    function handler(e: MouseEvent) {
+    function mouseHandler(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     }
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    function keyHandler(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('mousedown', mouseHandler);
+    document.addEventListener('keydown', keyHandler);
+    return () => {
+      document.removeEventListener('mousedown', mouseHandler);
+      document.removeEventListener('keydown', keyHandler);
+    };
   }, [onClose]);
 
   const currentTexts = new Set(currentItems.map(i => i.text.trim()));
@@ -442,11 +449,13 @@ function DraggableCard({
             onDragEnd={onDragEnd}
             className={`flex items-center gap-1 group/item rounded transition-colors ${overIdx === idx && dragSrc.current !== idx ? 'bg-[#333]' : ''}`}
           >
-            <GripVertical
-              className={`w-3.5 h-3.5 text-[#444] shrink-0 opacity-0 transition-opacity ${item.text.trim() !== '' ? 'cursor-grab active:cursor-grabbing group-hover/item:opacity-100' : 'pointer-events-none'}`}
-              onMouseDown={() => { if (item.text.trim() !== '') fromGrip.current = true; }}
-              onMouseUp={() => { fromGrip.current = false; }}
-            />
+            <button
+              onClick={() => { if (items.length > 1) changeItems(items.filter((_, i) => i !== idx)); }}
+              tabIndex={-1}
+              className={`shrink-0 opacity-0 transition-opacity text-[#555] hover:text-red-400 ${item.text.trim() !== '' && items.length > 1 ? 'group-hover/item:opacity-100' : 'pointer-events-none'}`}
+            >
+              <X className="w-3 h-3" />
+            </button>
             <input
               value={item.text}
               onChange={e => updateItem(item.id, e.target.value)}
@@ -457,6 +466,11 @@ function DraggableCard({
               className="item-input flex-1 bg-transparent text-[#d4d4d4] text-sm focus:outline-none placeholder:text-[#444] min-w-0"
             />
             <TypePicker current={item.issueType} onChange={t => updateItemType(item.id, t)} isEmpty={item.text.trim() === ''} />
+            <GripVertical
+              className={`w-3.5 h-3.5 text-[#444] shrink-0 opacity-0 transition-opacity ${item.text.trim() !== '' ? 'cursor-grab active:cursor-grabbing group-hover/item:opacity-100' : 'pointer-events-none'}`}
+              onMouseDown={() => { if (item.text.trim() !== '') fromGrip.current = true; }}
+              onMouseUp={() => { fromGrip.current = false; }}
+            />
           </div>
         ))}
       </div>
