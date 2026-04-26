@@ -331,6 +331,13 @@ function DraggableCard({
   function handleKeyDown(e: React.KeyboardEvent, idx: number) {
     if (e.key === 'Enter') {
       e.preventDefault();
+      const emptyIdx = items.findIndex(it => it.text === '');
+      if (emptyIdx !== -1) {
+        setTimeout(() => {
+          document.querySelectorAll<HTMLInputElement>(`[data-card-id="${devKey}"] .item-input`)[emptyIdx]?.focus();
+        }, 0);
+        return;
+      }
       const next = [...items];
       next.splice(idx + 1, 0, makeItem());
       changeItems(next);
@@ -349,12 +356,13 @@ function DraggableCard({
 
   function onDragStart(e: React.DragEvent, idx: number) {
     if (!fromGrip.current) { e.preventDefault(); return; }
+    e.stopPropagation();
     dragSrc.current = idx;
     e.dataTransfer.effectAllowed = 'move';
   }
-  function onDragOver(e: React.DragEvent, idx: number) { e.preventDefault(); setOverIdx(idx); }
+  function onDragOver(e: React.DragEvent, idx: number) { e.preventDefault(); e.stopPropagation(); setOverIdx(idx); }
   function onDrop(e: React.DragEvent, idx: number) {
-    e.preventDefault();
+    e.preventDefault(); e.stopPropagation();
     if (dragSrc.current !== null && dragSrc.current !== idx) {
       const next = [...items];
       const [moved] = next.splice(dragSrc.current, 1);
@@ -384,6 +392,13 @@ function DraggableCard({
   function handleBodyClick(e: React.MouseEvent) {
     const target = e.target as HTMLElement;
     if (target.closest('input, button, .item-input')) return;
+    const emptyIdx = items.findIndex(it => it.text === '');
+    if (emptyIdx !== -1) {
+      setTimeout(() => {
+        document.querySelectorAll<HTMLInputElement>(`[data-card-id="${devKey}"] .item-input`)[emptyIdx]?.focus();
+      }, 0);
+      return;
+    }
     const newItem = makeItem();
     changeItems([...items, newItem]);
     setTimeout(() => {
@@ -522,7 +537,8 @@ function DraggableCard({
                     backlogIssues={backlogIssues}
                     currentItems={items}
                     onAdd={issue => {
-                      changeItems([...items, makeItem(issue.summary, issue.type)]);
+                      const filled = items.filter(it => it.text.trim() !== '');
+                      changeItems([...filled, makeItem(issue.summary, issue.type)]);
                     }}
                     onClose={() => setBacklogOpen(false)}
                   />
@@ -603,7 +619,8 @@ function DraggableCard({
                 backlogIssues={backlogIssues}
                 currentItems={items}
                 onAdd={issue => {
-                  changeItems([...items, makeItem(issue.summary, issue.type)]);
+                  const filled = items.filter(it => it.text.trim() !== '');
+                  changeItems([...filled, makeItem(issue.summary, issue.type)]);
                 }}
                 onClose={() => setBacklogOpen(false)}
               />
