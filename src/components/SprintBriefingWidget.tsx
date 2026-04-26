@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { ClipboardList, Plus, GripVertical, Send, X, Bookmark, CheckSquare, Bug, Loader2, LayoutGrid, List as ListIcon, Archive, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
+import { ClipboardList, Plus, GripVertical, Send, X, Bookmark, CheckSquare, Bug, Loader2, LayoutGrid, List as ListIcon, Archive, ChevronDown, ChevronUp } from 'lucide-react';
 import { JiraIssue } from './ItemDistributionWidget';
 
 interface Props {
@@ -251,33 +251,22 @@ function BacklogImportPopup({
           {available.map(issue => (
             <div
               key={issue.id}
-              className="flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-[#383838] text-xs text-[#ccc] transition-colors group"
+              className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[#383838] text-xs text-[#ccc] transition-colors group"
             >
-              <button
-                onClick={() => onAdd(issue)}
-                className="flex items-center gap-2 flex-1 min-w-0 text-right"
+              <IssueTypeIcon type={issue.type} />
+              <a
+                href={issue.url || '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}
+                className="flex-1 text-right truncate hover:text-[#5b9bd5] hover:underline transition-colors"
                 title={issue.summary}
               >
-                <IssueTypeIcon type={issue.type} />
-                <span className="flex-1 text-right truncate">{issue.summary}</span>
+                {issue.summary}
+              </a>
+              <button onClick={() => onAdd(issue)} className="text-[#555] group-hover:text-[#888] transition-colors shrink-0" title="הוסף לכרטיס">
+                <Plus className="w-3 h-3" />
               </button>
-              <div className="flex items-center gap-1 shrink-0">
-                {issue.url && (
-                  <a
-                    href={issue.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={e => e.stopPropagation()}
-                    className="text-[#555] hover:text-[#5b9bd5] transition-colors"
-                    title="פתח בג'ירה"
-                  >
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                )}
-                <button onClick={() => onAdd(issue)} className="text-[#555] group-hover:text-[#888] transition-colors" title="הוסף לכרטיס">
-                  <Plus className="w-3 h-3" />
-                </button>
-              </div>
             </div>
           ))}
         </div>
