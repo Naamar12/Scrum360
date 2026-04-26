@@ -253,7 +253,8 @@ function BacklogImportPopup({
             return (
               <div
                 key={issue.id}
-                className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors group ${added ? 'text-[#555]' : 'hover:bg-[#383838] text-[#ccc]'}`}
+                onClick={() => !added && onAdd(issue)}
+                className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors group ${added ? 'text-[#555] cursor-default' : 'hover:bg-[#383838] text-[#ccc] cursor-pointer'}`}
               >
                 {issue.url && (
                   <a
@@ -271,17 +272,10 @@ function BacklogImportPopup({
                 <span className={`flex-1 text-right truncate ${added ? 'line-through' : ''}`} title={issue.summary}>
                   {issue.summary}
                 </span>
-                <button
-                  onClick={() => !added && onAdd(issue)}
-                  disabled={added}
-                  className="shrink-0 transition-colors"
-                  title={added ? 'כבר נוסף' : 'הוסף לכרטיס'}
-                >
-                  {added
-                    ? <CheckSquare className="w-3 h-3 text-[#4a9d5a]" />
-                    : <Plus className="w-3 h-3 text-[#555] group-hover:text-[#888]" />
-                  }
-                </button>
+                {added
+                  ? <CheckSquare className="w-3 h-3 text-[#4a9d5a] shrink-0" />
+                  : <Plus className="w-3 h-3 text-[#555] group-hover:text-[#888] shrink-0" />
+                }
               </div>
             );
           })}
