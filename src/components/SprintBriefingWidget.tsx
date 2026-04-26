@@ -253,7 +253,7 @@ function BacklogImportPopup({
             return (
               <div
                 key={issue.id}
-                className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors group ${added ? 'opacity-40' : 'hover:bg-[#383838] text-[#ccc]'}`}
+                className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors group ${added ? 'text-[#555]' : 'hover:bg-[#383838] text-[#ccc]'}`}
               >
                 <IssueTypeIcon type={issue.type} />
                 <a
@@ -261,7 +261,7 @@ function BacklogImportPopup({
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={e => e.stopPropagation()}
-                  className="flex-1 text-right truncate hover:text-[#5b9bd5] hover:underline transition-colors"
+                  className={`flex-1 text-right truncate hover:text-[#5b9bd5] hover:underline transition-colors ${added ? 'line-through' : ''}`}
                   title={issue.summary}
                 >
                   {issue.summary}
