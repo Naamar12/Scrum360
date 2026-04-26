@@ -233,7 +233,7 @@ function BacklogImportPopup({
   const currentTexts = new Set(currentItems.map(i => i.text.trim()));
   const typeOrder: Record<string, number> = { story: 0, bug: 1, task: 2 };
   const available = backlogIssues
-    .filter(i => !currentTexts.has(i.summary.trim()) && !['done', 'closed', 'resolved'].includes(i.status?.toLowerCase() ?? ''))
+    .filter(i => !['done', 'closed', 'resolved'].includes(i.status?.toLowerCase() ?? ''))
     .sort((a, b) => (typeOrder[issueCategory(a.type) ?? 'task'] ?? 2) - (typeOrder[issueCategory(b.type) ?? 'task'] ?? 2));
 
   return (
@@ -248,27 +248,38 @@ function BacklogImportPopup({
         <p className="text-xs text-[#555] px-1 py-2 text-center">אין פריטים ב-Backlog</p>
       ) : (
         <div className="overflow-y-auto flex flex-col gap-0.5">
-          {available.map(issue => (
-            <div
-              key={issue.id}
-              className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[#383838] text-xs text-[#ccc] transition-colors group"
-            >
-              <IssueTypeIcon type={issue.type} />
-              <a
-                href={issue.url || '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={e => e.stopPropagation()}
-                className="flex-1 text-right truncate hover:text-[#5b9bd5] hover:underline transition-colors"
-                title={issue.summary}
+          {available.map(issue => {
+            const added = currentTexts.has(issue.summary.trim());
+            return (
+              <div
+                key={issue.id}
+                className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors group ${added ? 'opacity-40' : 'hover:bg-[#383838] text-[#ccc]'}`}
               >
-                {issue.summary}
-              </a>
-              <button onClick={() => onAdd(issue)} className="text-[#555] group-hover:text-[#888] transition-colors shrink-0" title="הוסף לכרטיס">
-                <Plus className="w-3 h-3" />
-              </button>
-            </div>
-          ))}
+                <IssueTypeIcon type={issue.type} />
+                <a
+                  href={issue.url || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  className="flex-1 text-right truncate hover:text-[#5b9bd5] hover:underline transition-colors"
+                  title={issue.summary}
+                >
+                  {issue.summary}
+                </a>
+                <button
+                  onClick={() => !added && onAdd(issue)}
+                  disabled={added}
+                  className="shrink-0 transition-colors"
+                  title={added ? 'כבר נוסף' : 'הוסף לכרטיס'}
+                >
+                  {added
+                    ? <CheckSquare className="w-3 h-3 text-[#4a9d5a]" />
+                    : <Plus className="w-3 h-3 text-[#555] group-hover:text-[#888]" />
+                  }
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
