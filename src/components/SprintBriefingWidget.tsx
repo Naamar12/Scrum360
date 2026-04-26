@@ -251,10 +251,12 @@ function BacklogImportPopup({
           {available.map(issue => {
             const added = currentTexts.has(issue.summary.trim());
             return (
-              <div
+              <button
                 key={issue.id}
                 onClick={() => !added && onAdd(issue)}
-                className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors group ${added ? 'text-[#555] cursor-default' : 'hover:bg-[#383838] text-[#ccc] cursor-pointer'}`}
+                disabled={added}
+                className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-right transition-colors group ${added ? 'text-[#555] cursor-default' : 'hover:bg-[#383838] text-[#ccc] cursor-pointer'}`}
+                title={issue.summary}
               >
                 {issue.url && (
                   <a
@@ -269,14 +271,12 @@ function BacklogImportPopup({
                   </a>
                 )}
                 <IssueTypeIcon type={issue.type} />
-                <span className={`flex-1 text-right truncate ${added ? 'line-through' : ''}`} title={issue.summary}>
-                  {issue.summary}
-                </span>
+                <span className={`flex-1 text-right truncate ${added ? 'line-through' : ''}`}>{issue.summary}</span>
                 {added
                   ? <CheckSquare className="w-3 h-3 text-[#4a9d5a] shrink-0" />
                   : <Plus className="w-3 h-3 text-[#555] group-hover:text-[#888] shrink-0" />
                 }
-              </div>
+              </button>
             );
           })}
         </div>
