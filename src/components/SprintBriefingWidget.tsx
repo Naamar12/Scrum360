@@ -305,7 +305,7 @@ function DraggableCard({
   return (
     <div
       data-card-id={devKey}
-      className="bg-[#1e1e1e] border border-[#3a3a3a] rounded-2xl p-4 flex flex-col gap-2 min-h-[200px] group/card"
+      className="bg-[#1e1e1e] border border-[#3a3a3a] rounded-2xl p-4 flex flex-col gap-2 min-h-[200px] max-h-[340px] group/card"
     >
       {/* Header row */}
       <div className="flex items-center justify-between gap-2">
@@ -327,7 +327,7 @@ function DraggableCard({
 
       {/* Body */}
       <div
-        className="flex-1"
+        className="flex-1 overflow-y-auto min-h-0"
         onClick={e => {
           const target = e.target as HTMLElement;
           if (target.closest('input, button, .item-input')) return;
@@ -340,7 +340,7 @@ function DraggableCard({
           }, 0);
         }}
       >
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1 pb-2">
           {items.map((item, idx) => (
             <div
               key={item.id}
@@ -399,7 +399,7 @@ function DraggableCard({
       {slackError && <p className="text-xs text-red-400">{slackError}</p>}
 
       {/* Footer buttons */}
-      <div className="flex justify-between mt-1">
+      <div className="flex justify-between mt-1 shrink-0">
         <button
           onClick={onDelete}
           className="text-xs text-[#888] border border-[#3a3a3a] rounded-full px-3 py-1 hover:border-red-800 hover:text-red-400 transition-colors"
