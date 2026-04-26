@@ -12,7 +12,7 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: '5mb' }));
 
   // API routes FIRST
   app.get("/api/health", (req, res) => {
@@ -499,6 +499,33 @@ Rules:
     } catch (error: any) {
       console.error('Claude sprint-briefing error:', error);
       res.status(500).json({ error: error.message || 'Failed to generate briefing' });
+    }
+  });
+
+  // Slack: send a message to a channel or DM
+  app.post("/api/slack/send-message", async (req, res) => {
+    const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
+    if (!SLACK_BOT_TOKEN) return res.status(503).json({ error: 'SLACK_BOT_TOKEN not configured' });
+
+    const { channel, text } = req.body;
+    if (!channel?.trim() || !text?.trim()) {
+      return res.status(400).json({ error: 'channel and text are required' });
+    }
+
+    try {
+      const response = await fetch('https://slack.com/api/chat.postMessage', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ channel: channel.trim(), text: text.trim() }),
+      });
+      const data = await response.json() as any;
+      if (!data.ok) return res.status(400).json({ error: data.error ?? 'Slack API error' });
+      res.json({ ok: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'Failed to send Slack message' });
     }
   });
 
