@@ -233,6 +233,7 @@ function DraggableCard({
   const [slackChannel, setSlackChannel] = useState('');
   const [slackSending, setSlackSending] = useState(false);
   const [slackError, setSlackError] = useState('');
+  const [slackSuccess, setSlackSuccess] = useState(false);
   const [undoItems, setUndoItems] = useState<CardItem[] | null>(null);
   const dragSrc = useRef<number | null>(null);
   const fromGrip = useRef(false);
@@ -286,6 +287,16 @@ function DraggableCard({
   }
   function onDragEnd() { dragSrc.current = null; fromGrip.current = false; setOverIdx(null); }
 
+  const slackErrorMessages: Record<string, string> = {
+    missing_scope: 'לבוט חסרות הרשאות – יש להוסיף את הסקופ chat:write',
+    channel_not_found: 'ערוץ או משתמש לא נמצא',
+    not_in_channel: 'הבוט לא חבר בערוץ זה',
+    invalid_auth: 'טוקן סלאק לא תקין',
+    account_inactive: 'חשבון הסלאק לא פעיל',
+    is_archived: 'הערוץ ארכיוני',
+    msg_too_long: 'ההודעה ארוכה מדי',
+  };
+
   async function handleSendSlack() {
     if (!slackChannel.trim()) return;
     setSlackSending(true);
@@ -293,10 +304,16 @@ function DraggableCard({
     try {
       const text = items.filter(i => i.text.trim()).map(i => `• ${i.text}`).join('\n');
       await onSendToSlack(`${slackChannel.trim()}|||${text}`);
-      setSlackOpen(false);
-      setSlackChannel('');
+      setSlackSuccess(true);
+      setTimeout(() => {
+        setSlackOpen(false);
+        setSlackChannel('');
+        setSlackSuccess(false);
+      }, 1200);
     } catch (err: any) {
-      setSlackError(err.message ?? 'שגיאה');
+      const raw: string = err.message ?? 'שגיאה';
+      const key = raw.split(' ')[0];
+      setSlackError(slackErrorMessages[key] ?? raw);
     } finally {
       setSlackSending(false);
     }
@@ -373,30 +390,46 @@ function DraggableCard({
 
       {/* Slack inline form */}
       {slackOpen && (
-        <div className="flex gap-1.5 mt-1">
-          <input
-            value={slackChannel}
-            onChange={e => setSlackChannel(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSendSlack()}
-            placeholder="#channel או @user"
-            dir="ltr"
-            autoFocus
-            className="flex-1 bg-[#2a2a2a] border border-[#3a3a3a] rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-[#555] placeholder:text-[#555]"
-          />
-          <button
-            onClick={handleSendSlack}
-            disabled={slackSending}
-            className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 rounded-lg text-xs text-white transition-colors"
-          >
-            {slackSending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
-          </button>
-          <button onClick={() => { setSlackOpen(false); setSlackError(''); }}
-            className="px-2 py-1 text-[#666] hover:text-[#999] transition-colors">
-            <X className="w-3 h-3" />
-          </button>
+        <div className="flex flex-col gap-1 mt-1">
+          <div className="flex gap-1.5">
+            <input
+              value={slackChannel}
+              onChange={e => { setSlackChannel(e.target.value); setSlackError(''); }}
+              onKeyDown={e => e.key === 'Enter' && handleSendSlack()}
+              placeholder="#channel או @user"
+              dir="ltr"
+              autoFocus
+              disabled={slackSending || slackSuccess}
+              className="flex-1 bg-[#2a2a2a] border border-[#3a3a3a] rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-600 placeholder:text-[#555] disabled:opacity-50 transition-colors"
+            />
+            <button
+              onClick={handleSendSlack}
+              disabled={slackSending || slackSuccess || !slackChannel.trim()}
+              className={`px-2.5 py-1 rounded-lg text-xs text-white transition-colors flex items-center gap-1 ${
+                slackSuccess
+                  ? 'bg-emerald-600'
+                  : 'bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed'
+              }`}
+            >
+              {slackSuccess
+                ? <><span className="text-xs">✓</span> נשלח</>
+                : slackSending
+                  ? <Loader2 className="w-3 h-3 animate-spin" />
+                  : <><Send className="w-3 h-3" /> שלח</>
+              }
+            </button>
+            <button
+              onClick={() => { setSlackOpen(false); setSlackError(''); setSlackSuccess(false); }}
+              className="px-2 py-1 text-[#666] hover:text-[#999] transition-colors"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+          {slackError && (
+            <p className="text-xs text-red-400 px-0.5">{slackError}</p>
+          )}
         </div>
       )}
-      {slackError && <p className="text-xs text-red-400">{slackError}</p>}
 
       {/* Footer buttons */}
       <div className="flex justify-between mt-1">
@@ -409,9 +442,13 @@ function DraggableCard({
         <div className="flex gap-1.5">
           {status !== 'empty' && (
             <button
-              onClick={() => setSlackOpen(v => !v)}
+              onClick={() => { setSlackOpen(v => !v); setSlackError(''); setSlackSuccess(false); }}
               title="שלח לסלאק"
-              className="text-xs text-[#888] border border-[#3a3a3a] rounded-full px-3 py-1 hover:border-indigo-600 hover:text-indigo-400 transition-colors flex items-center gap-1"
+              className={`text-xs border rounded-full px-3 py-1 transition-colors flex items-center gap-1 ${
+                slackOpen
+                  ? 'border-indigo-600 text-indigo-400 bg-indigo-900/20'
+                  : 'text-[#888] border-[#3a3a3a] hover:border-indigo-600 hover:text-indigo-400'
+              }`}
             >
               <Send className="w-3 h-3" />
               סלאק

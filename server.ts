@@ -522,7 +522,11 @@ Rules:
         body: JSON.stringify({ channel: channel.trim(), text: text.trim() }),
       });
       const data = await response.json() as any;
-      if (!data.ok) return res.status(400).json({ error: data.error ?? 'Slack API error' });
+      if (!data.ok) {
+        const err = data.error ?? 'Slack API error';
+        const needed = data.needed ? ` (needed: ${data.needed})` : '';
+        return res.status(400).json({ error: err + needed });
+      }
       res.json({ ok: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Failed to send Slack message' });
