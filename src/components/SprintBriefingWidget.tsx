@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { ClipboardList, Plus, GripVertical, Send, X, Bookmark, CheckSquare, Bug, Loader2 } from 'lucide-react';
+import { ClipboardList, Plus, GripVertical, Send, X, Bookmark, CheckSquare, Bug, Loader2, LayoutGrid, List as ListIcon, Archive, ChevronDown, ChevronUp } from 'lucide-react';
 import { JiraIssue } from './ItemDistributionWidget';
 
 interface Props {
@@ -48,7 +48,7 @@ function TypePicker({ current, onChange }: { current?: string; onChange: (t: str
         {cat ? <IssueTypeIcon type={current} /> : <span className="text-[#444] text-xs leading-none">◈</span>}
       </button>
       {open && (
-        <div className="absolute left-0 top-5 z-20 bg-[#2a2a2a] border border-[#444] rounded-lg shadow-lg p-1 flex flex-col gap-0.5 min-w-[90px]">
+        <div className="absolute left-0 top-5 z-20 bg-[#2c2c2c] border border-[#404040] rounded-lg shadow-lg p-1 flex flex-col gap-0.5 min-w-[90px]">
           {TYPE_OPTIONS.map(opt => (
             <button
               key={opt.type}
@@ -210,9 +210,65 @@ function MarkdownView({ content }: { content: string }) {
   return <div className="space-y-0.5 overflow-y-auto max-h-56 pr-1">{elements}</div>;
 }
 
+function BacklogImportPopup({
+  backlogIssues,
+  currentItems,
+  onAdd,
+  onClose,
+}: {
+  backlogIssues: JiraIssue[];
+  currentItems: CardItem[];
+  onAdd: (issue: JiraIssue) => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  const currentTexts = new Set(currentItems.map(i => i.text.trim()));
+  const typeOrder: Record<string, number> = { story: 0, bug: 1, task: 2 };
+  const available = backlogIssues
+    .filter(i => !currentTexts.has(i.summary.trim()) && !['done', 'closed', 'resolved'].includes(i.status?.toLowerCase() ?? ''))
+    .sort((a, b) => (typeOrder[issueCategory(a.type) ?? 'task'] ?? 2) - (typeOrder[issueCategory(b.type) ?? 'task'] ?? 2));
+
+  return (
+    <div ref={ref} className="absolute left-0 bottom-6 z-30 bg-[#2c2c2c] border border-[#404040] rounded-xl shadow-2xl p-2 w-64 max-h-52 flex flex-col gap-1">
+      <div className="flex items-center justify-between px-1 mb-0.5">
+        <span className="text-[10px] text-[#888] uppercase tracking-wide">Backlog</span>
+        <button onClick={onClose} className="text-[#555] hover:text-[#888] transition-colors">
+          <X className="w-3 h-3" />
+        </button>
+      </div>
+      {available.length === 0 ? (
+        <p className="text-xs text-[#555] px-1 py-2 text-center">אין פריטים ב-Backlog</p>
+      ) : (
+        <div className="overflow-y-auto flex flex-col gap-0.5">
+          {available.map(issue => (
+            <button
+              key={issue.id}
+              onClick={() => onAdd(issue)}
+              className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[#383838] text-xs text-[#ccc] text-right transition-colors group"
+              title={issue.summary}
+            >
+              <IssueTypeIcon type={issue.type} />
+              <span className="flex-1 text-right truncate">{issue.summary}</span>
+              <Plus className="w-3 h-3 text-[#555] group-hover:text-[#888] shrink-0" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DraggableCard({
   devKey, initialTitle, initialItems, isReady, onTitleChange, onItemsChange, onDelete, onToggleReady, onSendToSlack,
-  onCardGripMouseDown, onCardGripMouseUp,
+  onCardGripMouseDown, onCardGripMouseUp, compact, backlogIssues,
 }: React.Attributes & {
   devKey: string;
   initialTitle: string;
@@ -225,6 +281,8 @@ function DraggableCard({
   onSendToSlack: (text: string) => Promise<void>;
   onCardGripMouseDown?: () => void;
   onCardGripMouseUp?: () => void;
+  compact?: boolean;
+  backlogIssues?: JiraIssue[];
 }) {
   const [title, setTitle] = useState(initialTitle);
   const [items, setItems] = useState<CardItem[]>(initialItems.length ? initialItems : [makeItem()]);
@@ -234,11 +292,13 @@ function DraggableCard({
   const [slackSending, setSlackSending] = useState(false);
   const [slackError, setSlackError] = useState('');
   const [undoItems, setUndoItems] = useState<CardItem[] | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [backlogOpen, setBacklogOpen] = useState(false);
   const dragSrc = useRef<number | null>(null);
   const fromGrip = useRef(false);
 
-
   const status = cardStatus({ title, items, isReady });
+  const filledCount = items.filter(i => i.text.trim()).length;
 
   function changeTitle(t: string) { setTitle(t); onTitleChange(t); }
   function changeItems(next: CardItem[]) { setItems(next); onItemsChange(next); }
@@ -302,13 +362,194 @@ function DraggableCard({
     }
   }
 
+  function handleBodyClick(e: React.MouseEvent) {
+    const target = e.target as HTMLElement;
+    if (target.closest('input, button, .item-input')) return;
+    const newItem = makeItem();
+    changeItems([...items, newItem]);
+    setTimeout(() => {
+      const inputs = document.querySelectorAll<HTMLInputElement>(`[data-card-id="${devKey}"] .item-input`);
+      inputs[inputs.length - 1]?.focus();
+    }, 0);
+  }
+
+  const itemsBody = (
+    <div className="flex-1">
+      <div className="flex flex-col gap-1">
+        {items.map((item, idx) => (
+          <div
+            key={item.id}
+            draggable
+            onDragStart={e => onDragStart(e, idx)}
+            onDragOver={e => onDragOver(e, idx)}
+            onDrop={e => onDrop(e, idx)}
+            onDragEnd={onDragEnd}
+            className={`flex items-center gap-1 group/item rounded transition-colors ${overIdx === idx && dragSrc.current !== idx ? 'bg-[#333]' : ''}`}
+          >
+            <GripVertical
+              className="w-3.5 h-3.5 text-[#444] cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity"
+              onMouseDown={() => { fromGrip.current = true; }}
+              onMouseUp={() => { fromGrip.current = false; }}
+            />
+            <input
+              value={item.text}
+              onChange={e => updateItem(item.id, e.target.value)}
+              onKeyDown={e => handleKeyDown(e, idx)}
+              placeholder="הוסף פריט..."
+              dir="rtl"
+              draggable={false}
+              className="item-input flex-1 bg-transparent text-[#d4d4d4] text-sm focus:outline-none placeholder:text-[#444] min-w-0"
+            />
+            <TypePicker current={item.issueType} onChange={t => updateItemType(item.id, t)} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const footerButtons = (
+    <div className="flex justify-between mt-1">
+      <button
+        onClick={onDelete}
+        className="text-xs text-[#777] border border-[#404040] rounded-full px-3 py-1 hover:border-red-800 hover:text-red-400 transition-colors"
+      >
+        מחק
+      </button>
+      <div className="flex gap-1.5">
+        {status !== 'empty' && (
+          <button
+            onClick={() => setSlackOpen(v => !v)}
+            title="שלח לסלאק"
+            className="text-xs text-[#777] border border-[#404040] rounded-full px-3 py-1 hover:border-indigo-600 hover:text-indigo-400 transition-colors flex items-center gap-1"
+          >
+            <Send className="w-3 h-3" />
+            סלאק
+          </button>
+        )}
+        {undoItems && (
+          <button
+            onClick={() => { changeItems(undoItems); setUndoItems(null); }}
+            className="text-xs text-[#777] border border-[#404040] rounded-full px-3 py-1 hover:border-indigo-600 hover:text-indigo-400 transition-colors"
+          >
+            שחזר
+          </button>
+        )}
+        <button
+          onClick={() => { setUndoItems(items); changeItems([makeItem()]); }}
+          className="text-xs text-[#777] border border-[#404040] rounded-full px-3 py-1 hover:border-[#666] hover:text-[#aaa] transition-colors"
+        >
+          נקה
+        </button>
+        <button
+          onClick={onToggleReady}
+          className={`text-xs border rounded-full px-3 py-1 transition-colors ${
+            isReady
+              ? 'border-emerald-600 text-emerald-400 hover:border-red-700 hover:text-red-400'
+              : 'border-[#404040] text-[#777] hover:border-emerald-600 hover:text-emerald-400'
+          }`}
+        >
+          {isReady ? 'מוכן ✓' : 'סמן כמוכן'}
+        </button>
+      </div>
+    </div>
+  );
+
+  // Compact / list-row mode
+  if (compact) {
+    return (
+      <div
+        data-card-id={devKey}
+        className="bg-[#252525] border border-[#353535] rounded-xl group/card"
+      >
+        <div className="flex items-center gap-2 px-3 py-2">
+          <GripVertical
+            className="w-4 h-4 text-[#444] cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover/card:opacity-100 transition-opacity"
+            onMouseDown={() => onCardGripMouseDown?.()}
+            onMouseUp={() => onCardGripMouseUp?.()}
+          />
+          <input
+            value={title}
+            onChange={e => changeTitle(e.target.value)}
+            dir="rtl"
+            className="text-white text-sm font-semibold text-right bg-transparent focus:outline-none border-b border-transparent focus:border-[#555] pb-0.5 flex-1 min-w-0 transition-colors"
+          />
+          <div className="flex items-center gap-2 shrink-0">
+            {filledCount > 0 && (
+              <span className="text-[10px] text-[#666] bg-[#2d2d2d] border border-[#404040] px-1.5 py-0.5 rounded-full">{filledCount}</span>
+            )}
+            <StatusDot status={status} />
+            <button
+              onClick={() => setExpanded(v => !v)}
+              className="text-[#555] hover:text-[#888] transition-colors p-0.5"
+            >
+              {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+        </div>
+        {expanded && (
+          <div className="border-t border-[#333] px-3 py-2 flex flex-col gap-2" onClick={handleBodyClick}>
+            {itemsBody}
+            {backlogIssues && backlogIssues.length > 0 && (
+              <div className="relative">
+                <button
+                  onClick={() => setBacklogOpen(v => !v)}
+                  className="flex items-center gap-1 text-[10px] text-[#555] hover:text-[#888] transition-colors"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>ייבוא מ-Backlog</span>
+                </button>
+                {backlogOpen && (
+                  <BacklogImportPopup
+                    backlogIssues={backlogIssues}
+                    currentItems={items}
+                    onAdd={issue => {
+                      changeItems([...items, makeItem(issue.summary, issue.type)]);
+                    }}
+                    onClose={() => setBacklogOpen(false)}
+                  />
+                )}
+              </div>
+            )}
+            {slackOpen && (
+              <div className="flex gap-1.5">
+                <input
+                  value={slackChannel}
+                  onChange={e => setSlackChannel(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSendSlack()}
+                  placeholder="#channel או @user"
+                  dir="ltr"
+                  autoFocus
+                  className="flex-1 bg-[#2c2c2c] border border-[#404040] rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-[#555] placeholder:text-[#555]"
+                />
+                <button
+                  onClick={handleSendSlack}
+                  disabled={slackSending}
+                  className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 rounded-lg text-xs text-white transition-colors"
+                >
+                  {slackSending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                </button>
+                <button onClick={() => { setSlackOpen(false); setSlackError(''); }}
+                  className="px-2 py-1 text-[#666] hover:text-[#999] transition-colors">
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+            {slackError && <p className="text-xs text-red-400">{slackError}</p>}
+            {footerButtons}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Full grid card mode
   return (
     <div
       data-card-id={devKey}
-      className="bg-[#1e1e1e] border border-[#3a3a3a] rounded-2xl p-4 flex flex-col gap-2 min-h-[200px] group/card"
+      className="bg-[#252525] border border-[#353535] rounded-2xl flex flex-col group/card"
     >
-      {/* Header row */}
-      <div className="flex items-center justify-between gap-2">
+      {/* Header – distinct background */}
+      <div className="bg-[#2c2c2c] border-b border-[#353535] px-3 py-2 flex items-center gap-2 rounded-t-2xl">
         <GripVertical
           className="w-4 h-4 text-[#444] cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover/card:opacity-100 transition-opacity"
           onMouseDown={() => onCardGripMouseDown?.()}
@@ -326,54 +567,35 @@ function DraggableCard({
       </div>
 
       {/* Body */}
-      <div
-        className="flex-1"
-        onClick={e => {
-          const target = e.target as HTMLElement;
-          if (target.closest('input, button, .item-input')) return;
-          const newItem = makeItem();
-          const next = [...items, newItem];
-          changeItems(next);
-          setTimeout(() => {
-            const inputs = document.querySelectorAll<HTMLInputElement>(`[data-card-id="${devKey}"] .item-input`);
-            inputs[inputs.length - 1]?.focus();
-          }, 0);
-        }}
-      >
-        <div className="flex flex-col gap-1">
-          {items.map((item, idx) => (
-            <div
-              key={item.id}
-              draggable
-              onDragStart={e => onDragStart(e, idx)}
-              onDragOver={e => onDragOver(e, idx)}
-              onDrop={e => onDrop(e, idx)}
-              onDragEnd={onDragEnd}
-              className={`flex items-center gap-1 group/item rounded transition-colors ${overIdx === idx && dragSrc.current !== idx ? 'bg-[#2a2a2a]' : ''}`}
+      <div className="flex-1 px-3 pt-2.5 pb-1 min-h-[120px]" onClick={handleBodyClick}>
+        {itemsBody}
+        {/* Backlog import button */}
+        {backlogIssues && backlogIssues.length > 0 && (
+          <div className="relative mt-2">
+            <button
+              onClick={() => setBacklogOpen(v => !v)}
+              className="flex items-center gap-1 text-[10px] text-[#555] hover:text-[#888] transition-colors"
             >
-              <GripVertical
-                className="w-3.5 h-3.5 text-[#444] cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity"
-                onMouseDown={() => { fromGrip.current = true; }}
-                onMouseUp={() => { fromGrip.current = false; }}
+              <Plus className="w-3 h-3" />
+              <span>ייבוא מ-Backlog ({backlogIssues.filter(i => !items.some(ci => ci.text.trim() === i.summary.trim())).length})</span>
+            </button>
+            {backlogOpen && (
+              <BacklogImportPopup
+                backlogIssues={backlogIssues}
+                currentItems={items}
+                onAdd={issue => {
+                  changeItems([...items, makeItem(issue.summary, issue.type)]);
+                }}
+                onClose={() => setBacklogOpen(false)}
               />
-              <input
-                value={item.text}
-                onChange={e => updateItem(item.id, e.target.value)}
-                onKeyDown={e => handleKeyDown(e, idx)}
-                placeholder="הוסף פריט..."
-                dir="rtl"
-                draggable={false}
-                className="item-input flex-1 bg-transparent text-[#d4d4d4] text-sm focus:outline-none placeholder:text-[#444] min-w-0"
-              />
-              <TypePicker current={item.issueType} onChange={t => updateItemType(item.id, t)} />
-            </div>
-          ))}
-        </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Slack inline form */}
       {slackOpen && (
-        <div className="flex gap-1.5 mt-1">
+        <div className="flex gap-1.5 px-3 mt-1">
           <input
             value={slackChannel}
             onChange={e => setSlackChannel(e.target.value)}
@@ -381,7 +603,7 @@ function DraggableCard({
             placeholder="#channel או @user"
             dir="ltr"
             autoFocus
-            className="flex-1 bg-[#2a2a2a] border border-[#3a3a3a] rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-[#555] placeholder:text-[#555]"
+            className="flex-1 bg-[#2c2c2c] border border-[#404040] rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-[#555] placeholder:text-[#555]"
           />
           <button
             onClick={handleSendSlack}
@@ -396,52 +618,11 @@ function DraggableCard({
           </button>
         </div>
       )}
-      {slackError && <p className="text-xs text-red-400">{slackError}</p>}
+      {slackError && <p className="text-xs text-red-400 px-3">{slackError}</p>}
 
-      {/* Footer buttons */}
-      <div className="flex justify-between mt-1">
-        <button
-          onClick={onDelete}
-          className="text-xs text-[#888] border border-[#3a3a3a] rounded-full px-3 py-1 hover:border-red-800 hover:text-red-400 transition-colors"
-        >
-          מחק
-        </button>
-        <div className="flex gap-1.5">
-          {status !== 'empty' && (
-            <button
-              onClick={() => setSlackOpen(v => !v)}
-              title="שלח לסלאק"
-              className="text-xs text-[#888] border border-[#3a3a3a] rounded-full px-3 py-1 hover:border-indigo-600 hover:text-indigo-400 transition-colors flex items-center gap-1"
-            >
-              <Send className="w-3 h-3" />
-              סלאק
-            </button>
-          )}
-          {undoItems && (
-            <button
-              onClick={() => { changeItems(undoItems); setUndoItems(null); }}
-              className="text-xs text-[#888] border border-[#3a3a3a] rounded-full px-3 py-1 hover:border-indigo-600 hover:text-indigo-400 transition-colors"
-            >
-              שחזר
-            </button>
-          )}
-          <button
-            onClick={() => { setUndoItems(items); changeItems([makeItem()]); }}
-            className="text-xs text-[#888] border border-[#3a3a3a] rounded-full px-3 py-1 hover:border-[#666] hover:text-[#aaa] transition-colors"
-          >
-            נקה
-          </button>
-          <button
-            onClick={onToggleReady}
-            className={`text-xs border rounded-full px-3 py-1 transition-colors ${
-              isReady
-                ? 'border-emerald-600 text-emerald-400 hover:border-red-700 hover:text-red-400'
-                : 'border-[#3a3a3a] text-[#888] hover:border-emerald-600 hover:text-emerald-400'
-            }`}
-          >
-            {isReady ? 'מוכן ✓' : 'סמן כמוכן'}
-          </button>
-        </div>
+      {/* Footer */}
+      <div className="px-3 pb-3">
+        {footerButtons}
       </div>
     </div>
   );
@@ -496,6 +677,18 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
     return map;
   }, [issues]);
 
+  // Backlog issues grouped by assignee for quick import
+  const backlogIssuesByDev = useMemo(() => {
+    const map: Record<string, JiraIssue[]> = {};
+    for (const issue of issues) {
+      if (issue.sprintState === 'backlog' && issue.assignee && issue.assignee !== 'Unassigned' && issueCategory(issue.type) !== null) {
+        if (!map[issue.assignee]) map[issue.assignee] = [];
+        map[issue.assignee].push(issue);
+      }
+    }
+    return map;
+  }, [issues]);
+
   const stored = useMemo(() => {
     const s = loadStored();
     // migrate old [KEY] prefixes
@@ -520,6 +713,9 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
   const [extraCards, setExtraCards] = useState<string[]>(stored.extraCards);
   const [hiddenDevs, setHiddenDevs] = useState<Set<string>>(new Set(stored.hiddenDevs));
   const [cardOrder, setCardOrder] = useState<string[]>(stored.cardOrder ?? []);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [archiveModalOpen, setArchiveModalOpen] = useState(false);
+  const [boardKey, setBoardKey] = useState(0);
   const cardDragSrc = useRef<string | null>(null);
   const cardFromGrip = useRef(false);
   const [cardOverKey, setCardOverKey] = useState<string | null>(null);
@@ -554,6 +750,32 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
       const existing = prev[key] as StoredCard | undefined;
       return { ...prev, [key]: { ...existing, title: existing?.title ?? key, items: existing?.items ?? [], isReady: !existing?.isReady } };
     });
+  }
+
+  function archiveAndReset() {
+    try {
+      const archiveKey = `sprint-briefing-archive-${Date.now()}`;
+      localStorage.setItem(archiveKey, JSON.stringify({
+        cards: cardData, extraCards, hiddenDevs: [...hiddenDevs], cardOrder,
+        archivedAt: new Date().toISOString(),
+        sprintName: activeSprintName,
+      }));
+    } catch {}
+    // Re-populate from current Jira active sprint
+    const fresh: Record<string, StoredCard> = {};
+    for (const dev of Object.keys(issuesByDev)) {
+      const devIssues = issuesByDev[dev] ?? [];
+      fresh[dev] = {
+        title: dev,
+        items: devIssues.filter(i => issueCategory(i.type) !== null).map(i => makeItem(i.summary, i.type)),
+      };
+    }
+    setCardData(fresh);
+    setExtraCards([]);
+    setHiddenDevs(new Set());
+    setCardOrder([]);
+    setArchiveModalOpen(false);
+    setBoardKey(k => k + 1);
   }
 
   async function handleSendToSlack(devKey: string, payload: string) {
@@ -617,11 +839,67 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
     cardFromGrip.current = false;
     setCardOverKey(null);
   }
-  const activeCount = issues.filter(i => i.sprintState === 'active').length;
+
   const readyCount = allCards.filter(({ cardKey }) => cardStatus(cardData[cardKey]) === 'ready').length;
 
   return (
     <div className="space-y-4">
+      {/* Archive confirmation modal */}
+      {archiveModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setArchiveModalOpen(false)}>
+          <div
+            className="bg-[#1e1e1e] border border-[#404040] rounded-2xl shadow-2xl p-6 w-[360px] flex flex-col gap-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-white font-semibold text-sm">סיום ספרינט</h3>
+                {activeSprintName && (
+                  <p className="text-[#888] text-xs mt-0.5">{activeSprintName}</p>
+                )}
+              </div>
+              <button onClick={() => setArchiveModalOpen(false)} className="text-[#555] hover:text-[#888] transition-colors mt-0.5">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-[#2c2c2c] border border-[#353535] rounded-xl p-3 flex flex-col gap-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[#888]">כרטיסים שיארכבו</span>
+                <span className="text-white font-medium">{allCards.length}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[#888]">מוכנים</span>
+                <span className="text-emerald-400 font-medium">{readyCount}/{allCards.length}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[#888]">לאחר הסגירה</span>
+                <span className="text-[#aaa]">הלוח יתאפס ויתמלא מג'ירה</span>
+              </div>
+            </div>
+
+            <p className="text-[#777] text-xs leading-relaxed">
+              הנתונים יישמרו בארכיון המקומי ולא יימחקו. ניתן לשחזר אותם ב-localStorage תחת המפתח <span className="text-[#aaa] font-mono">sprint-briefing-archive-*</span>.
+            </p>
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setArchiveModalOpen(false)}
+                className="text-sm text-[#888] border border-[#404040] rounded-full px-4 py-1.5 hover:border-[#666] hover:text-[#aaa] transition-colors"
+              >
+                ביטול
+              </button>
+              <button
+                onClick={archiveAndReset}
+                className="text-sm text-white bg-amber-600 hover:bg-amber-500 rounded-full px-4 py-1.5 font-medium transition-colors flex items-center gap-1.5"
+              >
+                <Archive className="w-3.5 h-3.5" />
+                ארכב וסגור ספרינט
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <ClipboardList className="w-5 h-5 text-indigo-600" />
@@ -635,9 +913,40 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
             </span>
           )}
         </div>
+
+        {/* Right side controls */}
+        <div className="flex items-center gap-2">
+          {/* Archive / New sprint */}
+          <button
+            onClick={() => setArchiveModalOpen(true)}
+            title="ארכב וניקוי לקראת ספרינט הבא"
+            className="flex items-center gap-1.5 text-xs text-[#666] border border-[#d0d0d0] rounded-full px-3 py-1 hover:border-amber-500 hover:text-amber-600 transition-colors"
+          >
+            <Archive className="w-3.5 h-3.5" />
+            ספרינט חדש
+          </button>
+
+          {/* View mode toggle */}
+          <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5 border border-slate-200">
+            <button
+              onClick={() => setViewMode('grid')}
+              title="תצוגת כרטיסים"
+              className={`p-1.5 rounded transition-colors ${viewMode === 'grid' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              title="תצוגת רשימה"
+              className={`p-1.5 rounded transition-colors ${viewMode === 'list' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              <ListIcon className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+      <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-3 md:grid-cols-3' : 'flex flex-col gap-1.5'}>
         {allCards.map(({ cardKey, isExtra }) => {
           const card = cardData[cardKey] as StoredCard | undefined;
           const isOver = cardOverKey === cardKey && cardDragSrc.current !== cardKey;
@@ -649,10 +958,10 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
               onDragOver={e => onCardDragOver(e, cardKey)}
               onDrop={e => onCardDrop(e, cardKey)}
               onDragEnd={onCardDragEnd}
-              className={`transition-transform ${isOver ? 'scale-[1.02] ring-2 ring-indigo-500/40 rounded-2xl' : ''}`}
+              className={`transition-transform ${isOver ? (viewMode === 'grid' ? 'scale-[1.02] ring-2 ring-indigo-500/40 rounded-2xl' : 'ring-1 ring-indigo-500/40 rounded-xl') : ''}`}
             >
               <DraggableCard
-                key={cardKey}
+                key={`${boardKey}-${cardKey}`}
                 devKey={cardKey}
                 initialTitle={card?.title ?? cardKey}
                 initialItems={(card?.items ?? []).map((i: StoredCard['items'][number]) => ({ ...i }))}
@@ -664,6 +973,8 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
                 onSendToSlack={(payload: string) => handleSendToSlack(cardKey, payload)}
                 onCardGripMouseDown={() => { cardFromGrip.current = true; }}
                 onCardGripMouseUp={() => { cardFromGrip.current = false; }}
+                compact={viewMode === 'list'}
+                backlogIssues={isExtra ? undefined : backlogIssuesByDev[cardKey]}
               />
             </div>
           );
@@ -671,9 +982,11 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
 
         <button
           onClick={addCard}
-          className="bg-[#1e1e1e] border border-dashed border-[#3a3a3a] rounded-2xl p-4 flex flex-col items-center justify-center gap-2 min-h-[200px] hover:border-[#666] transition-colors group"
+          className={`bg-[#252525] border border-dashed border-[#404040] rounded-2xl flex flex-col items-center justify-center gap-2 hover:border-[#666] transition-colors group ${
+            viewMode === 'grid' ? 'p-4 min-h-[120px]' : 'p-3 rounded-xl min-h-[44px] flex-row'
+          }`}
         >
-          <Plus className="w-5 h-5 text-[#555] group-hover:text-[#888]" />
+          <Plus className={`text-[#555] group-hover:text-[#888] ${viewMode === 'grid' ? 'w-5 h-5' : 'w-4 h-4'}`} />
           <span className="text-xs text-[#555] group-hover:text-[#888]">חדש</span>
         </button>
       </div>
