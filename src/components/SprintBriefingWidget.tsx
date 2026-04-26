@@ -730,18 +730,18 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
     const seen = new Set<string>();
     const list: string[] = [];
     for (const issue of issues) {
-      if (issue.sprintState === 'active' && issue.assignee && issue.assignee !== 'Unassigned') {
+      if ((issue.sprintState === 'active' || issue.sprintState === 'next') && issue.assignee && issue.assignee !== 'Unassigned') {
         if (!seen.has(issue.assignee)) { seen.add(issue.assignee); list.push(issue.assignee); }
       }
     }
     return list;
   }, [issues]);
 
-  // Issues grouped by assignee for auto-populate
+  // Issues grouped by assignee for auto-populate (active + next sprint)
   const issuesByDev = useMemo(() => {
     const map: Record<string, JiraIssue[]> = {};
     for (const issue of issues) {
-      if (issue.sprintState === 'active' && issue.assignee && issue.assignee !== 'Unassigned') {
+      if ((issue.sprintState === 'active' || issue.sprintState === 'next') && issue.assignee && issue.assignee !== 'Unassigned') {
         if (!map[issue.assignee]) map[issue.assignee] = [];
         map[issue.assignee].push(issue);
       }
@@ -749,11 +749,11 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
     return map;
   }, [issues]);
 
-  // Backlog issues grouped by assignee for quick import
+  // Backlog issues grouped by assignee for quick import (all assigned items)
   const backlogIssuesByDev = useMemo(() => {
     const map: Record<string, JiraIssue[]> = {};
     for (const issue of issues) {
-      if (issue.sprintState === 'backlog' && issue.assignee && issue.assignee !== 'Unassigned' && issueCategory(issue.type) !== null) {
+      if (issue.sprintState === 'backlog' && issue.assignee && issue.assignee !== 'Unassigned') {
         if (!map[issue.assignee]) map[issue.assignee] = [];
         map[issue.assignee].push(issue);
       }
