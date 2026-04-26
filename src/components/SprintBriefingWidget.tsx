@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { ClipboardList, Plus, GripVertical, Send, X, Bookmark, CheckSquare, Bug, Loader2, LayoutGrid, List as ListIcon, Archive, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
+import { ClipboardList, Plus, GripVertical, Send, X, Bookmark, CheckSquare, Bug, Loader2, LayoutGrid, List as ListIcon, Archive, ChevronDown, ChevronUp, ExternalLink, Palette } from 'lucide-react';
 import { JiraIssue } from './ItemDistributionWidget';
 
 interface Props {
@@ -98,10 +98,28 @@ function TypePicker({ current, onChange, isEmpty }: { current?: string; onChange
 const STORAGE_KEY = 'sprint-briefing-v3';
 type CardStatus = 'empty' | 'draft' | 'ready';
 
+const CARD_COLORS = [
+  { key: 'default', swatch: '#444444', card: '#252525', header: '#2c2c2c', border: '#353535' },
+  { key: 'red',     swatch: '#b85c5c', card: '#2d1c1c', header: '#321f1f', border: '#4a2828' },
+  { key: 'orange',  swatch: '#c47c3a', card: '#2d2118', header: '#32261b', border: '#4a3520' },
+  { key: 'yellow',  swatch: '#b8a83a', card: '#2c2a18', header: '#302e1b', border: '#484220' },
+  { key: 'green',   swatch: '#4a9d5a', card: '#1c2d1e', header: '#1f3221', border: '#28482e' },
+  { key: 'teal',    swatch: '#3a9d8e', card: '#1c2b2a', header: '#1f302f', border: '#284644' },
+  { key: 'blue',    swatch: '#5b82c4', card: '#1c1f2d', header: '#1f2332', border: '#28304a' },
+  { key: 'purple',  swatch: '#8a5bc4', card: '#241c2d', header: '#291f32', border: '#3e284a' },
+  { key: 'pink',    swatch: '#c45b8a', card: '#2d1c24', header: '#321f29', border: '#4a283c' },
+] as const;
+type CardColorKey = typeof CARD_COLORS[number]['key'];
+function cardColorStyles(key?: string) {
+  return CARD_COLORS.find(c => c.key === key) ?? CARD_COLORS[0];
+}
+
 interface StoredCard {
   title: string;
   items: { id: number; text: string; issueType?: string }[];
   isReady?: boolean;
+  bgColor?: string;
+  generatedContent?: string;
 }
 
 interface StoredData {
@@ -234,16 +252,19 @@ function MarkdownView({ content }: { content: string }) {
 
 function BacklogImportPopup({
   backlogIssues,
+  allBacklogIssues,
   currentItems,
   onAdd,
   onClose,
 }: {
   backlogIssues: JiraIssue[];
+  allBacklogIssues?: JiraIssue[];
   currentItems: CardItem[];
   onAdd: (issue: JiraIssue) => void;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const [showAll, setShowAll] = useState(false);
   useEffect(() => {
     function mouseHandler(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
@@ -261,7 +282,8 @@ function BacklogImportPopup({
 
   const currentTexts = new Set(currentItems.map(i => i.text.trim()));
   const typeOrder: Record<string, number> = { story: 0, bug: 1, task: 2 };
-  const available = backlogIssues
+  const sourceIssues = showAll && allBacklogIssues ? allBacklogIssues : backlogIssues;
+  const available = sourceIssues
     .filter(i => !['done', 'closed', 'resolved'].includes(i.status?.toLowerCase() ?? ''))
     .sort((a, b) => (typeOrder[issueCategory(a.type) ?? 'task'] ?? 2) - (typeOrder[issueCategory(b.type) ?? 'task'] ?? 2));
 
@@ -269,9 +291,19 @@ function BacklogImportPopup({
     <div ref={ref} className="absolute left-0 bottom-6 z-30 bg-[#2c2c2c] border border-[#404040] rounded-xl shadow-2xl p-2 w-64 max-h-52 flex flex-col gap-1">
       <div className="flex items-center justify-between px-1 mb-0.5">
         <span className="text-[10px] text-[#888] uppercase tracking-wide">Backlog</span>
-        <button onClick={onClose} className="text-[#555] hover:text-[#888] transition-colors">
-          <X className="w-3 h-3" />
-        </button>
+        <div className="flex items-center gap-2">
+          {allBacklogIssues && allBacklogIssues.length > backlogIssues.length && (
+            <button
+              onClick={() => setShowAll(v => !v)}
+              className={`text-[10px] transition-colors ${showAll ? 'text-[#5b9bd5]' : 'text-[#555] hover:text-[#888]'}`}
+            >
+              הצג הכל
+            </button>
+          )}
+          <button onClick={onClose} className="text-[#555] hover:text-[#888] transition-colors">
+            <X className="w-3 h-3" />
+          </button>
+        </div>
       </div>
       {available.length === 0 ? (
         <p className="text-xs text-[#555] px-1 py-2 text-center">אין פריטים ב-Backlog</p>
@@ -300,7 +332,10 @@ function BacklogImportPopup({
                   </a>
                 )}
                 <IssueTypeIcon type={issue.type} />
-                <span className={`flex-1 text-right truncate ${added ? 'line-through' : ''}`}>{issue.summary}</span>
+                <span dir="rtl" className={`flex-1 text-right truncate ${added ? 'line-through' : ''}`}>{issue.summary}</span>
+                {showAll && issue.assignee && issue.assignee !== 'Unassigned' && !added && (
+                  <span className="text-[9px] text-[#666] shrink-0 max-w-[40px] truncate">{issue.assignee.split(' ')[0]}</span>
+                )}
                 {added
                   ? <CheckSquare className="w-3 h-3 text-[#4a9d5a] shrink-0" />
                   : <Plus className="w-3 h-3 text-[#555] group-hover:text-[#888] shrink-0" />
@@ -316,7 +351,7 @@ function BacklogImportPopup({
 
 function DraggableCard({
   devKey, initialTitle, initialItems, isReady, onTitleChange, onItemsChange, onDelete, onToggleReady, onSendToSlack,
-  onCardGripMouseDown, onCardGripMouseUp, compact, backlogIssues,
+  onCardGripMouseDown, onCardGripMouseUp, compact, backlogIssues, allBacklogIssues, initialBgColor, onBgColorChange,
 }: React.Attributes & {
   devKey: string;
   initialTitle: string;
@@ -331,6 +366,9 @@ function DraggableCard({
   onCardGripMouseUp?: () => void;
   compact?: boolean;
   backlogIssues?: JiraIssue[];
+  allBacklogIssues?: JiraIssue[];
+  initialBgColor?: string;
+  onBgColorChange: (color: string) => void;
 }) {
   const [title, setTitle] = useState(initialTitle);
   const [items, setItems] = useState<CardItem[]>(initialItems.length ? initialItems : [makeItem()]);
@@ -342,8 +380,23 @@ function DraggableCard({
   const [undoItems, setUndoItems] = useState<CardItem[] | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [backlogOpen, setBacklogOpen] = useState(false);
+  const [colorPickerOpen, setColorPickerOpen] = useState(false);
+  const [bgColorKey, setBgColorKey] = useState<string>(initialBgColor ?? 'default');
+  const colorPickerRef = useRef<HTMLDivElement>(null);
   const dragSrc = useRef<number | null>(null);
   const fromGrip = useRef(false);
+
+  useEffect(() => {
+    if (!colorPickerOpen) return;
+    function handler(e: MouseEvent) {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) setColorPickerOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [colorPickerOpen]);
+
+  function changeBgColor(key: string) { setBgColorKey(key); onBgColorChange(key); setColorPickerOpen(false); }
+  const colors = cardColorStyles(bgColorKey);
 
   const status = cardStatus({ title, items, isReady });
   const filledCount = items.filter(i => i.text.trim()).length;
@@ -529,7 +582,8 @@ function DraggableCard({
     return (
       <div
         data-card-id={devKey}
-        className="bg-[#252525] border border-[#353535] rounded-xl group/card"
+        className="border rounded-xl group/card"
+        style={{ background: colors.card, borderColor: colors.border }}
       >
         <div className="flex items-center gap-2 px-3 py-2">
           <GripVertical
@@ -557,9 +611,9 @@ function DraggableCard({
           </div>
         </div>
         {expanded && (
-          <div className="border-t border-[#333] px-3 py-2 flex flex-col gap-2" onClick={handleBodyClick}>
+          <div className="border-t px-3 py-2 flex flex-col gap-2" style={{ borderColor: colors.border }} onClick={handleBodyClick}>
             {itemsBody}
-            {backlogIssues && backlogIssues.length > 0 && (
+            {((backlogIssues && backlogIssues.length > 0) || (allBacklogIssues && allBacklogIssues.length > 0)) && (
               <div className="relative">
                 <button
                   onClick={() => setBacklogOpen(v => !v)}
@@ -570,7 +624,8 @@ function DraggableCard({
                 </button>
                 {backlogOpen && (
                   <BacklogImportPopup
-                    backlogIssues={backlogIssues}
+                    backlogIssues={backlogIssues ?? []}
+                    allBacklogIssues={allBacklogIssues}
                     currentItems={items}
                     onAdd={issue => {
                       const filled = items.filter(it => it.text.trim() !== '');
@@ -617,10 +672,11 @@ function DraggableCard({
   return (
     <div
       data-card-id={devKey}
-      className="bg-[#252525] border border-[#353535] rounded-2xl flex flex-col group/card"
+      className="border rounded-2xl flex flex-col group/card"
+      style={{ background: colors.card, borderColor: colors.border }}
     >
       {/* Header – distinct background */}
-      <div className="bg-[#2c2c2c] border-b border-[#353535] px-3 py-2 flex items-center gap-2 rounded-t-2xl">
+      <div className="border-b px-3 py-2 flex items-center gap-2 rounded-t-2xl" style={{ background: colors.header, borderColor: colors.border }}>
         <GripVertical
           className="w-4 h-4 text-[#444] cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover/card:opacity-100 transition-opacity"
           onMouseDown={() => onCardGripMouseDown?.()}
@@ -633,6 +689,28 @@ function DraggableCard({
           className="text-white text-sm font-semibold text-right bg-transparent focus:outline-none border-b border-transparent focus:border-[#555] pb-0.5 flex-1 min-w-0 transition-colors"
         />
         <div className="flex items-center gap-1.5 shrink-0">
+          <div ref={colorPickerRef} className="relative">
+            <button
+              onClick={() => setColorPickerOpen(v => !v)}
+              className="text-[#555] hover:text-[#888] transition-colors opacity-0 group-hover/card:opacity-100 p-0.5"
+              title="שנה צבע"
+            >
+              <Palette className="w-3.5 h-3.5" />
+            </button>
+            {colorPickerOpen && (
+              <div className="absolute left-0 top-6 z-30 bg-[#2c2c2c] border border-[#404040] rounded-xl shadow-2xl p-2 flex gap-1.5">
+                {CARD_COLORS.map(c => (
+                  <button
+                    key={c.key}
+                    onClick={() => changeBgColor(c.key)}
+                    className="w-5 h-5 rounded-full border-2 transition-transform hover:scale-110"
+                    style={{ background: c.swatch, borderColor: bgColorKey === c.key ? '#fff' : 'transparent' }}
+                    title={c.key}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
           <StatusDot status={status} />
         </div>
       </div>
@@ -641,18 +719,19 @@ function DraggableCard({
       <div className="flex-1 px-3 pt-2.5 pb-1 min-h-[120px]" onClick={handleBodyClick}>
         {itemsBody}
         {/* Backlog import button */}
-        {backlogIssues && backlogIssues.length > 0 && (
+        {((backlogIssues && backlogIssues.length > 0) || (allBacklogIssues && allBacklogIssues.length > 0)) && (
           <div className="relative mt-2">
             <button
               onClick={() => setBacklogOpen(v => !v)}
               className="flex items-center gap-1 text-[10px] text-[#555] hover:text-[#888] transition-colors"
             >
               <Plus className="w-3 h-3" />
-              <span>ייבוא מ-Backlog ({backlogIssues.filter(i => !items.some(ci => ci.text.trim() === i.summary.trim())).length})</span>
+              <span>ייבוא מ-Backlog ({(backlogIssues ?? []).filter(i => !items.some(ci => ci.text.trim() === i.summary.trim())).length})</span>
             </button>
             {backlogOpen && (
               <BacklogImportPopup
-                backlogIssues={backlogIssues}
+                backlogIssues={backlogIssues ?? []}
+                allBacklogIssues={allBacklogIssues}
                 currentItems={items}
                 onAdd={issue => {
                   const filled = items.filter(it => it.text.trim() !== '');
@@ -761,6 +840,11 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
     return map;
   }, [issues]);
 
+  const allBacklogIssues = useMemo(
+    () => issues.filter(i => i.sprintState === 'backlog' && issueCategory(i.type) !== null),
+    [issues],
+  );
+
   const stored = useMemo(() => {
     const s = loadStored();
     // migrate old [KEY] prefixes
@@ -777,6 +861,7 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
           title: dev,
           items: devIssues.filter(i => issueCategory(i.type) !== null).map(i => makeItem(i.summary, i.type)),
           generatedContent: initial[dev]?.generatedContent,
+          bgColor: initial[dev]?.bgColor,
         };
       }
     }
@@ -801,7 +886,7 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
       const existing = prev[key] as StoredCard | undefined;
       return {
         ...prev,
-        [key]: { title: existing?.title ?? key, items: existing?.items ?? [], isReady: existing?.isReady, ...patch },
+        [key]: { title: existing?.title ?? key, items: existing?.items ?? [], isReady: existing?.isReady, bgColor: existing?.bgColor, ...patch },
       };
     });
   }
@@ -1038,8 +1123,10 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
                 initialTitle={card?.title ?? cardKey}
                 initialItems={(card?.items ?? []).map((i: StoredCard['items'][number]) => ({ ...i }))}
                 isReady={card?.isReady}
+                initialBgColor={card?.bgColor}
                 onTitleChange={(t: string) => updateCard(cardKey, { title: t })}
                 onItemsChange={(items: CardItem[]) => updateCard(cardKey, { items })}
+                onBgColorChange={(bgColor: string) => updateCard(cardKey, { bgColor })}
                 onDelete={() => deleteCard(cardKey, isExtra)}
                 onToggleReady={() => toggleReady(cardKey)}
                 onSendToSlack={(payload: string) => handleSendToSlack(cardKey, payload)}
@@ -1047,6 +1134,7 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
                 onCardGripMouseUp={() => { cardFromGrip.current = false; }}
                 compact={viewMode === 'list'}
                 backlogIssues={isExtra ? undefined : backlogIssuesByDev[cardKey]}
+                allBacklogIssues={isExtra ? undefined : allBacklogIssues}
               />
             </div>
           );
