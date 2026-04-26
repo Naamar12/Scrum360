@@ -259,7 +259,7 @@ function BacklogImportPopup({
                 title={issue.summary}
               >
                 <IssueTypeIcon type={issue.type} />
-                <span className="flex-1 text-right truncate">{issue.key && <span className="text-[#666] mr-1">{issue.key}</span>}{issue.summary}</span>
+                <span className="flex-1 text-right truncate">{issue.summary}</span>
               </button>
               <div className="flex items-center gap-1 shrink-0">
                 {issue.url && (
