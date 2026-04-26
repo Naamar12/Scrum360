@@ -33,7 +33,7 @@ const TYPE_OPTIONS: { type: string; label: string; icon: React.ReactNode }[] = [
   { type: 'Task',  label: 'Task',  icon: <CheckSquare className="w-3.5 h-3.5 text-blue-400" /> },
 ];
 
-function TypePicker({ current, onChange }: { current?: string; onChange: (t: string | undefined) => void }) {
+function TypePicker({ current, onChange, isEmpty }: { current?: string; onChange: (t: string | undefined) => void; isEmpty?: boolean }) {
   const [open, setOpen] = useState(false);
   const cat = issueCategory(current);
 
@@ -41,11 +41,11 @@ function TypePicker({ current, onChange }: { current?: string; onChange: (t: str
     <div className="relative shrink-0">
       <button
         onClick={() => setOpen(v => !v)}
-        className={`flex items-center justify-center w-4 h-4 rounded transition-opacity ${cat ? 'opacity-100' : 'opacity-0 group-hover/item:opacity-60 hover:!opacity-100'}`}
+        className={`flex items-center justify-center w-4 h-4 rounded transition-opacity ${cat ? 'opacity-100' : isEmpty ? 'opacity-30 hover:opacity-70' : 'opacity-0 group-hover/item:opacity-60 hover:!opacity-100'}`}
         title="בחר סוג"
         tabIndex={-1}
       >
-        {cat ? <IssueTypeIcon type={current} /> : <span className="text-[#444] text-xs leading-none">◈</span>}
+        {cat ? <IssueTypeIcon type={current} /> : <svg viewBox="0 0 10 10" className="w-2.5 h-2.5"><circle cx="5" cy="5" r="4" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-[#888]"/></svg>}
       </button>
       {open && (
         <div className="absolute left-0 top-5 z-20 bg-[#2c2c2c] border border-[#404040] rounded-lg shadow-lg p-1 flex flex-col gap-0.5 min-w-[90px]">
@@ -413,16 +413,16 @@ function DraggableCard({
         {items.map((item, idx) => (
           <div
             key={item.id}
-            draggable
+            draggable={item.text.trim() !== ''}
             onDragStart={e => onDragStart(e, idx)}
-            onDragOver={e => onDragOver(e, idx)}
-            onDrop={e => onDrop(e, idx)}
+            onDragOver={e => { if (item.text.trim() !== '') onDragOver(e, idx); }}
+            onDrop={e => { if (item.text.trim() !== '') onDrop(e, idx); }}
             onDragEnd={onDragEnd}
             className={`flex items-center gap-1 group/item rounded transition-colors ${overIdx === idx && dragSrc.current !== idx ? 'bg-[#333]' : ''}`}
           >
             <GripVertical
-              className="w-3.5 h-3.5 text-[#444] cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity"
-              onMouseDown={() => { fromGrip.current = true; }}
+              className={`w-3.5 h-3.5 text-[#444] shrink-0 opacity-0 transition-opacity ${item.text.trim() !== '' ? 'cursor-grab active:cursor-grabbing group-hover/item:opacity-100' : 'pointer-events-none'}`}
+              onMouseDown={() => { if (item.text.trim() !== '') fromGrip.current = true; }}
               onMouseUp={() => { fromGrip.current = false; }}
             />
             <input
@@ -434,7 +434,7 @@ function DraggableCard({
               draggable={false}
               className="item-input flex-1 bg-transparent text-[#d4d4d4] text-sm focus:outline-none placeholder:text-[#444] min-w-0"
             />
-            <TypePicker current={item.issueType} onChange={t => updateItemType(item.id, t)} />
+            <TypePicker current={item.issueType} onChange={t => updateItemType(item.id, t)} isEmpty={item.text.trim() === ''} />
           </div>
         ))}
       </div>
