@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { ClipboardList, Plus, GripVertical, Send, X, Bookmark, CheckSquare, Bug, Loader2, LayoutGrid, List as ListIcon, Archive, ChevronDown, ChevronUp } from 'lucide-react';
+import { ClipboardList, Plus, GripVertical, Send, X, Bookmark, CheckSquare, Bug, Loader2, LayoutGrid, List as ListIcon, Archive, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import { JiraIssue } from './ItemDistributionWidget';
 
 interface Props {
@@ -255,17 +255,22 @@ function BacklogImportPopup({
                 key={issue.id}
                 className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors group ${added ? 'text-[#555]' : 'hover:bg-[#383838] text-[#ccc]'}`}
               >
+                {issue.url && (
+                  <a
+                    href={issue.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={e => e.stopPropagation()}
+                    className="text-[#555] hover:text-[#5b9bd5] transition-colors shrink-0"
+                    title="פתח בג'ירה"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
                 <IssueTypeIcon type={issue.type} />
-                <a
-                  href={issue.url || '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={e => e.stopPropagation()}
-                  className={`flex-1 text-right truncate hover:text-[#5b9bd5] hover:underline transition-colors ${added ? 'line-through' : ''}`}
-                  title={issue.summary}
-                >
+                <span className={`flex-1 text-right truncate ${added ? 'line-through' : ''}`} title={issue.summary}>
                   {issue.summary}
-                </a>
+                </span>
                 <button
                   onClick={() => !added && onAdd(issue)}
                   disabled={added}
