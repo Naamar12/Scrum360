@@ -311,6 +311,7 @@ async function startServer() {
         sprintGoalIssues: sprintGoalIssuesMap,
         sprintDay: sprintDay,
         sprintDaysRemaining: sprintDaysRemaining,
+        jiraBoardUrl: `https://${cleanDomain}.atlassian.net/jira/software/boards/${cleanBoardId}`,
         // In a real scenario, calculate burndown from Jira issues
         burndown: [
           { day: 'Day 1', ideal: 100, actual: 100 },

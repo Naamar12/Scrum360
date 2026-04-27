@@ -120,6 +120,14 @@ export default function App() {
   const [nextSprintName, setNextSprintName] = useState<string | undefined>();
   const [sprintDay, setSprintDay] = useState<string>("Day X of 10");
   const [sprintDaysRemaining, setSprintDaysRemaining] = useState<string>("X days remaining");
+  const [jiraBoardUrl, setJiraBoardUrl] = useState<string | undefined>();
+  const effectiveJiraBoardUrl = useMemo(() => {
+    if (jiraBoardUrl) return jiraBoardUrl;
+    const firstUrl = issues[0]?.url || Object.values(sprintGoalIssues)[0]?.url;
+    if (!firstUrl) return undefined;
+    const match = firstUrl.match(/^(https:\/\/[^/]+)/);
+    return match ? match[1] : undefined;
+  }, [jiraBoardUrl, issues, sprintGoalIssues]);
   const [jiraStatus, setJiraStatus] = useState<{loading: boolean, configured: boolean, message: string}>({
     loading: true,
     configured: false,
@@ -220,6 +228,7 @@ export default function App() {
 
         setSprintGoalText(data.sprintGoal || '');
         setSprintGoalIssues(data.sprintGoalIssues || {});
+        setJiraBoardUrl(data.jiraBoardUrl);
       } catch (err: any) {
         console.error("Failed to fetch from backend:", err);
         setJiraStatus({
@@ -383,7 +392,7 @@ export default function App() {
 
         {/* SPRINT GOALS */}
         <div className="grid grid-cols-1 gap-6">
-          <SprintGoalsWidget goalText={sprintGoalText} issues={issues} sprintGoalIssues={sprintGoalIssues} activeSprintName={activeSprintName} team={filter} />
+          <SprintGoalsWidget goalText={sprintGoalText} issues={issues} sprintGoalIssues={sprintGoalIssues} activeSprintName={activeSprintName} team={filter} jiraBoardUrl={effectiveJiraBoardUrl} />
         </div>
 
         {/* MAIN BODY - ROW 1 */}

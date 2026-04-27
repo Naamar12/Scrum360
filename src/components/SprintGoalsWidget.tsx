@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Target, CheckCircle2, Circle, ArrowRight } from 'lucide-react';
+import { CheckCircle2, Circle, ArrowRight } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { JiraIssue } from './ItemDistributionWidget';
@@ -58,6 +58,7 @@ interface SprintGoalsWidgetProps {
   sprintGoalIssues?: Record<string, { summary: string, url: string, fixVersion?: string, status?: string }>;
   activeSprintName?: string;
   team?: string;
+  jiraBoardUrl?: string;
 }
 
 const TEAM_LOGOS: Record<string, { src: string; cls: string }> = {
@@ -67,7 +68,7 @@ const TEAM_LOGOS: Record<string, { src: string; cls: string }> = {
   '12+':  { src: '/small_12+_logo.png',   cls: 'h-[22px] w-auto object-contain' },
 };
 
-export default function SprintGoalsWidget({ goalText = '', issues = [], sprintGoalIssues = {}, activeSprintName, team }: SprintGoalsWidgetProps) {
+export default function SprintGoalsWidget({ goalText = '', issues = [], sprintGoalIssues = {}, activeSprintName, team, jiraBoardUrl }: SprintGoalsWidgetProps) {
   const goals = useMemo(() => parseSprintGoals(goalText), [goalText]);
   const sprintLogoEntry = team ? TEAM_LOGOS[team] : undefined;
 
@@ -137,19 +138,32 @@ export default function SprintGoalsWidget({ goalText = '', issues = [], sprintGo
                 </h2>
               </div>
             )}
-            <h3 className="text-base font-semibold text-red-600">Sprint Strategic Goals</h3>
+            <h3 className="text-base font-semibold text-slate-700">Sprint Strategic Goals</h3>
             <p className="text-sm text-slate-500">Progress tracked via Epics & Issues</p>
           </div>
-          <div className="bg-indigo-50 p-2 rounded-lg">
-            <Target className="w-5 h-5 text-indigo-600" />
-          </div>
         </div>
-        <div className="flex flex-col items-center justify-center text-center py-4">
-          <h3 className="text-sm font-semibold text-slate-900">No Sprint Goals Defined</h3>
-          <p className="text-sm text-slate-500 mt-1 max-w-xs">
-            Add goals to your active sprint in Jira using the format:<br/>
+        <div className="flex flex-col items-center justify-center text-center py-4 gap-3">
+          <p className="text-sm font-semibold text-slate-700">🎯 No goals set for this sprint yet</p>
+          <div className="text-sm text-slate-500 max-w-xs space-y-1 text-left">
+            <p>To track progress, add your goals in Jira:</p>
+            <ol className="list-decimal list-inside space-y-1 mt-1">
+              <li>Click <span className="font-medium text-slate-600">•••</span> &gt; <span className="font-medium text-slate-600">Edit sprint</span></li>
+              <li>Add goals to the <span className="font-medium text-slate-600">Sprint goal</span> field using the format:</li>
+            </ol>
+          </div>
+          <code className="text-xs bg-slate-100 text-slate-700 px-2.5 py-1 rounded font-mono border border-slate-200">
             Goal Name (KESHET-123)
-          </p>
+          </code>
+          {jiraBoardUrl && (
+            <a
+              href={jiraBoardUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1 inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+            >
+              Go to Jira
+            </a>
+          )}
         </div>
       </div>
     );
@@ -169,11 +183,8 @@ export default function SprintGoalsWidget({ goalText = '', issues = [], sprintGo
               </h2>
             </div>
           )}
-          <h3 className="text-base font-semibold text-red-600">Sprint Strategic Goals</h3>
+          <h3 className="text-base font-semibold text-slate-700">Sprint Strategic Goals</h3>
           <p className="text-sm text-slate-500">Progress tracked via Epics & Issues</p>
-        </div>
-        <div className="bg-indigo-50 p-2 rounded-lg">
-          <Target className="w-5 h-5 text-indigo-600" />
         </div>
       </div>
 
