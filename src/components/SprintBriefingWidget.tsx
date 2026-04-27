@@ -345,8 +345,8 @@ function BacklogImportPopup({
             </button>
           )}
         </div>
-        <button onClick={onClose} className="text-[#555] hover:text-[#888] transition-colors">
-          <X className="w-3 h-3" />
+        <button onClick={onClose} className="text-[#aaa] hover:text-white transition-colors">
+          <X className="w-3.5 h-3.5" />
         </button>
       </div>
       <div className="relative px-1">
@@ -357,10 +357,10 @@ function BacklogImportPopup({
           onChange={e => setQuery(e.target.value)}
           placeholder="חיפוש..."
           dir="rtl"
-          className="w-full bg-[#1a1a1a] border border-[#505050] rounded-lg px-2 py-1.5 text-sm text-[#e0e0e0] placeholder-[#555] focus:outline-none focus:border-[#5b9bd5] focus:ring-1 focus:ring-[#5b9bd5]/30 transition-colors"
+          className="w-full bg-[#1a1a1a] border border-[#606060] rounded-lg px-2 py-1.5 text-sm text-[#e0e0e0] placeholder-[#888] focus:outline-none focus:border-[#5b9bd5] focus:ring-1 focus:ring-[#5b9bd5]/30 transition-colors"
         />
         {query && (
-          <button onClick={() => setQuery('')} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#555] hover:text-[#888]">
+          <button onClick={() => setQuery('')} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#aaa] hover:text-white transition-colors">
             <X className="w-3 h-3" />
           </button>
         )}
@@ -396,9 +396,25 @@ function BacklogImportPopup({
                 <button
                   onClick={() => !added && onAdd(issue)}
                   disabled={added}
-                  className={`flex items-center gap-2 px-2 py-2 rounded-lg text-xs text-right transition-colors group ${added ? 'text-[#666] cursor-default' : 'hover:bg-[#383838] text-[#ccc] cursor-pointer'}`}
+                  dir="rtl"
+                  className={`flex items-center gap-2 px-2 py-2 rounded-lg text-xs transition-colors group ${added ? 'text-[#666] cursor-default' : 'hover:bg-[#383838] text-[#ccc] cursor-pointer'}`}
                   title={issue.summary}
                 >
+                {added
+                  ? <CheckSquare className="w-3 h-3 text-[#4a9d5a] shrink-0" />
+                  : <Plus className="w-3 h-3 text-[#555] group-hover:text-[#888] shrink-0" />
+                }
+                <span className={`flex-1 truncate ${added ? 'line-through' : ''}`}>{issue.summary}</span>
+                {showAll && issue.assignee && issue.assignee !== 'Unassigned' && !added && (
+                  <span className="text-[9px] text-[#666] shrink-0 max-w-[40px] truncate">{issue.assignee.split(' ')[0]}</span>
+                )}
+                {inOtherCard && (
+                  <Link2
+                    className="w-3 h-3 text-amber-400 shrink-0"
+                    title={`כבר אצל: ${otherHolders.join(', ')}`}
+                  />
+                )}
+                <IssueTypeIcon type={issue.type} />
                 {issue.url && (
                   <a
                     href={issue.url}
@@ -411,21 +427,6 @@ function BacklogImportPopup({
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 )}
-                <IssueTypeIcon type={issue.type} />
-                <span dir="rtl" className={`flex-1 text-right truncate ${added ? 'line-through' : ''}`}>{issue.summary}</span>
-                {inOtherCard && (
-                  <Link2
-                    className="w-3 h-3 text-amber-400 shrink-0"
-                    title={`כבר אצל: ${otherHolders.join(', ')}`}
-                  />
-                )}
-                {showAll && issue.assignee && issue.assignee !== 'Unassigned' && !added && (
-                  <span className="text-[9px] text-[#666] shrink-0 max-w-[40px] truncate">{issue.assignee.split(' ')[0]}</span>
-                )}
-                {added
-                  ? <CheckSquare className="w-3 h-3 text-[#4a9d5a] shrink-0" />
-                  : <Plus className="w-3 h-3 text-[#555] group-hover:text-[#888] shrink-0" />
-                }
                 </button>
               </React.Fragment>
             );
