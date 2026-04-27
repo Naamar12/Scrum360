@@ -250,6 +250,13 @@ function MarkdownView({ content }: { content: string }) {
   return <div className="space-y-0.5 overflow-y-auto max-h-56 pr-1">{elements}</div>;
 }
 
+const BACKLOG_TYPE_FILTERS = [
+  { key: 'all',   label: 'הכל' },
+  { key: 'story', label: 'Story' },
+  { key: 'bug',   label: 'Bug' },
+  { key: 'task',  label: 'Task' },
+] as const;
+
 function BacklogImportPopup({
   backlogIssues,
   allBacklogIssues,
@@ -264,13 +271,22 @@ function BacklogImportPopup({
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const [showAll, setShowAll] = useState(false);
+  const [query, setQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'story' | 'bug' | 'task'>('all');
+
+  useEffect(() => { searchRef.current?.focus(); }, []);
+
   useEffect(() => {
     function mouseHandler(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     }
     function keyHandler(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        if (query) setQuery('');
+        else onClose();
+      }
     }
     document.addEventListener('mousedown', mouseHandler);
     document.addEventListener('keydown', keyHandler);
@@ -278,18 +294,20 @@ function BacklogImportPopup({
       document.removeEventListener('mousedown', mouseHandler);
       document.removeEventListener('keydown', keyHandler);
     };
-  }, [onClose]);
+  }, [onClose, query]);
 
   const currentTexts = new Set(currentItems.map(i => i.text.trim()));
   const typeOrder: Record<string, number> = { story: 0, bug: 1, task: 2 };
   const sourceIssues = showAll && allBacklogIssues ? allBacklogIssues : backlogIssues;
   const available = sourceIssues
     .filter(i => !['done', 'closed', 'resolved'].includes(i.status?.toLowerCase() ?? ''))
+    .filter(i => typeFilter === 'all' || issueCategory(i.type) === typeFilter)
+    .filter(i => !query || i.summary.toLowerCase().includes(query.toLowerCase()))
     .sort((a, b) => (typeOrder[issueCategory(a.type) ?? 'task'] ?? 2) - (typeOrder[issueCategory(b.type) ?? 'task'] ?? 2));
 
   return (
-    <div ref={ref} className="absolute left-0 bottom-6 z-30 bg-[#2c2c2c] border border-[#404040] rounded-xl shadow-2xl p-2 w-64 max-h-52 flex flex-col gap-1">
-      <div className="flex items-center justify-between px-1 mb-0.5">
+    <div ref={ref} className="absolute left-0 bottom-6 z-30 bg-[#2c2c2c] border border-[#404040] rounded-xl shadow-2xl p-2 w-72 max-h-80 flex flex-col gap-1.5">
+      <div className="flex items-center justify-between px-1">
         <span className="text-[10px] text-[#888] uppercase tracking-wide">Backlog</span>
         <div className="flex items-center gap-2">
           {allBacklogIssues && allBacklogIssues.length > backlogIssues.length && (
@@ -305,8 +323,35 @@ function BacklogImportPopup({
           </button>
         </div>
       </div>
+      <div className="relative px-1">
+        <input
+          ref={searchRef}
+          type="text"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="חיפוש..."
+          dir="rtl"
+          className="w-full bg-[#1e1e1e] border border-[#404040] rounded-lg px-2 py-1 text-xs text-[#ccc] placeholder-[#555] focus:outline-none focus:border-[#5b9bd5] transition-colors"
+        />
+        {query && (
+          <button onClick={() => setQuery('')} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#555] hover:text-[#888]">
+            <X className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+      <div className="flex gap-1 px-1">
+        {BACKLOG_TYPE_FILTERS.map(f => (
+          <button
+            key={f.key}
+            onClick={() => setTypeFilter(f.key)}
+            className={`text-[9px] px-2 py-0.5 rounded-full transition-colors ${typeFilter === f.key ? 'bg-[#383838] text-[#ccc]' : 'text-[#555] hover:text-[#888]'}`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
       {available.length === 0 ? (
-        <p className="text-xs text-[#555] px-1 py-2 text-center">אין פריטים ב-Backlog</p>
+        <p className="text-xs text-[#555] px-1 py-2 text-center">אין פריטים</p>
       ) : (
         <div className="overflow-y-auto flex flex-col gap-0.5">
           {available.map(issue => {
@@ -832,7 +877,7 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
   const backlogIssuesByDev = useMemo(() => {
     const map: Record<string, JiraIssue[]> = {};
     for (const issue of issues) {
-      if (issue.sprintState === 'backlog' && issue.assignee && issue.assignee !== 'Unassigned') {
+      if (issue.sprintState === 'backlog' && issue.assignee && issue.assignee !== 'Unassigned' && issueCategory(issue.type) !== null) {
         if (!map[issue.assignee]) map[issue.assignee] = [];
         map[issue.assignee].push(issue);
       }
