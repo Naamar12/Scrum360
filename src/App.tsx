@@ -58,10 +58,10 @@ const slackMentions = [
 ];
 
 const FILTER_OPTIONS = [
-  { value: 'v1',   logo: '/small_v1_logo.png' },
-  { value: 'mako', logo: '/small_mako_logo.png' },
-  { value: 'N12',  logo: '/small_n12_logo.png' },
-  { value: '12+',  logo: '/small_12+_logo.png' },
+  { value: 'v1',   logo: '/small_v1_logo.png',   logoClass: 'h-7 object-contain' },
+  { value: 'mako', logo: '/small_mako_logo.png',  logoClass: 'h-7 object-contain' },
+  { value: 'N12',  logo: '/small_n12_logo.png',   logoClass: 'h-7 object-contain' },
+  { value: '12+',  logo: '/small_12+_logo.png',   logoClass: 'h-[22px] object-contain -translate-x-0.5' },
 ];
 
 function FilterImageDropdown({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -83,7 +83,9 @@ function FilterImageDropdown({ value, onChange }: { value: string; onChange: (v:
         onClick={() => setOpen(o => !o)}
         className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg py-1.5 px-3 focus:ring-2 focus:ring-violet-500 focus:border-violet-400 cursor-pointer"
       >
-        <img src={selected.logo} alt={selected.value} className="h-7 object-contain" />
+        <div className="h-7 w-7 flex items-center justify-center">
+          <img src={selected.logo} alt={selected.value} className={selected.logoClass} />
+        </div>
         <svg className="w-4 h-4 text-slate-400 ml-1" viewBox="0 0 20 20" fill="currentColor">
           <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
         </svg>
@@ -96,7 +98,9 @@ function FilterImageDropdown({ value, onChange }: { value: string; onChange: (v:
               onClick={() => { onChange(opt.value); setOpen(false); }}
               className={`flex items-center justify-center w-full px-4 py-3 hover:bg-slate-50 ${opt.value === value ? 'bg-violet-50' : ''}`}
             >
-              <img src={opt.logo} alt={opt.value} className="h-7 object-contain" />
+              <div className="h-7 w-7 flex items-center justify-center">
+                <img src={opt.logo} alt={opt.value} className={opt.logoClass} />
+              </div>
             </button>
           ))}
         </div>
@@ -379,7 +383,7 @@ export default function App() {
 
         {/* SPRINT GOALS */}
         <div className="grid grid-cols-1 gap-6">
-          <SprintGoalsWidget goalText={sprintGoalText} issues={issues} sprintGoalIssues={sprintGoalIssues} activeSprintName={activeSprintName} />
+          <SprintGoalsWidget goalText={sprintGoalText} issues={issues} sprintGoalIssues={sprintGoalIssues} activeSprintName={activeSprintName} team={filter} />
         </div>
 
         {/* MAIN BODY - ROW 1 */}
