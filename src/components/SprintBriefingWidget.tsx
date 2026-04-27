@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ClipboardList, Plus, GripVertical, Send, X, Bookmark, CheckSquare, Bug, Loader2, LayoutGrid, List as ListIcon, Archive, ChevronDown, ChevronUp, ExternalLink, Palette } from 'lucide-react';
 import { JiraIssue } from './ItemDistributionWidget';
 
@@ -263,18 +264,31 @@ function BacklogImportPopup({
   currentItems,
   onAdd,
   onClose,
+  triggerRef,
 }: {
   backlogIssues: JiraIssue[];
   allBacklogIssues?: JiraIssue[];
   currentItems: CardItem[];
   onAdd: (issue: JiraIssue) => void;
   onClose: () => void;
+  triggerRef: React.RefObject<HTMLButtonElement>;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const [showAll, setShowAll] = useState(false);
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'story' | 'bug' | 'task'>('all');
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!triggerRef.current || !ref.current) return;
+    const tr = triggerRef.current.getBoundingClientRect();
+    const popupH = ref.current.offsetHeight;
+    const popupW = ref.current.offsetWidth;
+    const top = Math.max(8, tr.top - popupH - 6);
+    const left = Math.max(8, Math.min(tr.left, window.innerWidth - popupW - 8));
+    setPos(prev => (prev?.top === top && prev?.left === left ? prev : { top, left }));
+  });
 
   useEffect(() => { searchRef.current?.focus(); }, []);
 
@@ -302,11 +316,15 @@ function BacklogImportPopup({
   const available = sourceIssues
     .filter(i => !['done', 'closed', 'resolved'].includes(i.status?.toLowerCase() ?? ''))
     .filter(i => typeFilter === 'all' || issueCategory(i.type) === typeFilter)
-    .filter(i => !query || i.summary.toLowerCase().includes(query.toLowerCase()))
+    .filter(i => !query || i.summary.toLowerCase().includes(query.toLowerCase()) || (showAll && i.assignee?.toLowerCase().includes(query.toLowerCase())))
     .sort((a, b) => (typeOrder[issueCategory(a.type) ?? 'task'] ?? 2) - (typeOrder[issueCategory(b.type) ?? 'task'] ?? 2));
 
-  return (
-    <div ref={ref} className="absolute left-0 bottom-6 z-30 bg-[#2c2c2c] border border-[#404040] rounded-xl shadow-2xl p-2 w-72 max-h-80 flex flex-col gap-1.5">
+  return createPortal(
+    <div
+      ref={ref}
+      style={pos ? { position: 'fixed', top: pos.top, left: pos.left } : { position: 'fixed', visibility: 'hidden' }}
+      className="z-[9999] bg-[#2c2c2c] border border-[#404040] rounded-xl shadow-2xl p-2 w-72 max-h-80 flex flex-col gap-1.5"
+    >
       <div className="flex items-center justify-between px-1">
         <span className="text-[10px] text-[#888] uppercase tracking-wide">Backlog</span>
         <div className="flex items-center gap-2">
@@ -391,7 +409,8 @@ function BacklogImportPopup({
           })}
         </div>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -426,6 +445,7 @@ function DraggableCard({
   const [undoItems, setUndoItems] = useState<CardItem[] | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [backlogOpen, setBacklogOpen] = useState(false);
+  const backlogTriggerRef = useRef<HTMLButtonElement>(null);
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const [bgColorKey, setBgColorKey] = useState<string>(initialBgColor ?? 'default');
   const colorPickerRef = useRef<HTMLDivElement>(null);
@@ -662,6 +682,7 @@ function DraggableCard({
             {((backlogIssues && backlogIssues.length > 0) || (allBacklogIssues && allBacklogIssues.length > 0)) && (
               <div className="relative">
                 <button
+                  ref={backlogTriggerRef}
                   onClick={() => setBacklogOpen(v => !v)}
                   className="flex items-center gap-1 text-[10px] text-[#555] hover:text-[#888] transition-colors"
                 >
@@ -678,6 +699,7 @@ function DraggableCard({
                       changeItems([...filled, makeItem(issue.summary, issue.type)]);
                     }}
                     onClose={() => setBacklogOpen(false)}
+                    triggerRef={backlogTriggerRef}
                   />
                 )}
               </div>
@@ -768,6 +790,7 @@ function DraggableCard({
         {((backlogIssues && backlogIssues.length > 0) || (allBacklogIssues && allBacklogIssues.length > 0)) && (
           <div className="relative mt-2">
             <button
+              ref={backlogTriggerRef}
               onClick={() => setBacklogOpen(v => !v)}
               className="flex items-center gap-1 text-[10px] text-[#555] hover:text-[#888] transition-colors"
             >
@@ -784,6 +807,7 @@ function DraggableCard({
                   changeItems([...filled, makeItem(issue.summary, issue.type)]);
                 }}
                 onClose={() => setBacklogOpen(false)}
+                triggerRef={backlogTriggerRef}
               />
             )}
           </div>
