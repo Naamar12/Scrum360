@@ -97,7 +97,8 @@ function TypePicker({ current, onChange, isEmpty }: { current?: string; onChange
   );
 }
 
-const STORAGE_KEY = 'sprint-briefing-v3';
+const STORAGE_KEY_PREFIX = 'sprint-briefing-v4';
+function storageKey(filter: string) { return `${STORAGE_KEY_PREFIX}-${filter}`; }
 type CardStatus = 'empty' | 'draft' | 'ready';
 
 const CARD_COLORS = [
@@ -131,16 +132,16 @@ interface StoredData {
   cardOrder?: string[];
 }
 
-function loadStored(): StoredData {
+function loadStored(key: string): StoredData {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(key);
     if (raw) return JSON.parse(raw);
   } catch {}
   return { cards: {}, extraCards: [], hiddenDevs: [] };
 }
 
-function saveStored(data: StoredData) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
+function saveStored(key: string, data: StoredData) {
+  try { localStorage.setItem(key, JSON.stringify(data)); } catch {}
 }
 
 // Strip legacy [KESHET-xxx] prefixes from items loaded from old storage
@@ -1193,25 +1194,27 @@ export default function SprintBriefingWidget({ issues, activeSprintName, filter 
     [issues],
   );
 
+  const filterStorageKey = useMemo(() => storageKey(filter ?? 'default'), [filter]);
   const stored = useMemo(() => {
-    const s = loadStored();
+    const s = loadStored(filterStorageKey);
     // migrate old [KEY] prefixes
     Object.values(s.cards).forEach(c => { c.items = migrateItems(c.items); });
     return s;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [cardData, setCardData] = useState<Record<string, StoredCard>>(() => {
-    // Auto-populate new dev cards from Jira
     const initial = { ...stored.cards };
     for (const dev of Object.keys(issuesByDev)) {
-      if (!initial[dev] || !initial[dev].items?.some(i => i.text.trim())) {
-        const devIssues = issuesByDev[dev] ?? [];
-        initial[dev] = {
-          title: dev,
-          items: devIssues.filter(i => issueCategory(i.type) !== null).map(i => makeItem(i.summary, i.type)),
-          generatedContent: initial[dev]?.generatedContent,
-          bgColor: initial[dev]?.bgColor,
-        };
-      }
+      const devIssues = issuesByDev[dev] ?? [];
+      const freshItems = devIssues.filter(i => issueCategory(i.type) !== null).map(i => makeItem(i.summary, i.type));
+      // When Jira data is already loaded on mount, always use it — stored data may be
+      // from a previous filter or a stale cache write.
+      initial[dev] = {
+        title: initial[dev]?.title ?? dev,
+        items: freshItems,
+        generatedContent: initial[dev]?.generatedContent,
+        bgColor: initial[dev]?.bgColor,
+      };
     }
     return initial;
   });
@@ -1225,15 +1228,20 @@ export default function SprintBriefingWidget({ issues, activeSprintName, filter 
   // On the very first load we skip force-repopulate to respect saved localStorage data.
   const hasEverLoadedRef = useRef(false);
   const wasIssuesByDevEmptyRef = useRef(true);
+  const filterStorageKeyRef = useRef(filterStorageKey);
+  useEffect(() => { filterStorageKeyRef.current = filterStorageKey; }, [filterStorageKey]);
 
   // Auto-populate cards whenever Jira issues load or the filter changes.
   useEffect(() => {
     const isEmpty = Object.keys(issuesByDev).length === 0;
+    const isFirstLoad = !hasEverLoadedRef.current;
     const comingFromEmpty = wasIssuesByDevEmptyRef.current && !isEmpty && hasEverLoadedRef.current;
     wasIssuesByDevEmptyRef.current = isEmpty;
     if (isEmpty) return;
-    const forceRepopulate = comingFromEmpty;
-    if (!hasEverLoadedRef.current) hasEverLoadedRef.current = true;
+    // forceRepopulate on: filter change (comingFromEmpty) OR first Jira load (isFirstLoad).
+    // First-load repopulate ensures stale localStorage data is always replaced by current Jira data.
+    const forceRepopulate = comingFromEmpty || isFirstLoad;
+    if (isFirstLoad) hasEverLoadedRef.current = true;
 
     const typeOrder: Record<string, number> = { story: 0, bug: 1, task: 2 };
     const sortIssues = (devIssues: JiraIssue[]) =>
@@ -1283,7 +1291,10 @@ export default function SprintBriefingWidget({ issues, activeSprintName, filter 
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    saveStored({ cards: cardData, extraCards, hiddenDevs: [...hiddenDevs], cardOrder });
+    // Don't persist until at least one Jira load has completed — avoids writing stale
+    // localStorage data back to storage before fresh Jira data arrives.
+    if (!hasEverLoadedRef.current) return;
+    saveStored(filterStorageKeyRef.current, { cards: cardData, extraCards, hiddenDevs: [...hiddenDevs], cardOrder });
   }, [cardData, extraCards, hiddenDevs, cardOrder]);
 
   function updateCard(key: string, patch: Partial<StoredCard>) {

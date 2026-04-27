@@ -249,7 +249,9 @@ async function startServer() {
             sprintState = 'active';
           } else if (nextSprintId && issue.fields.sprint.id === nextSprintId) {
             sprintState = 'next';
-          } else if (issue.fields.sprint.state === 'active') {
+          } else if (!activeSprintId && issue.fields.sprint.state === 'active') {
+            // Fallback only when the board's active sprint is unknown: avoids marking
+            // issues from other teams' active sprints as active on this board.
             sprintState = 'active';
           } else if (issue.fields.sprint.state === 'future') {
             sprintState = 'backlog'; // Other future sprints pushed to backlog visually

@@ -462,7 +462,7 @@ export default function App() {
 
           </>
         ) : activeTab === 'briefing' ? (
-          <SprintBriefingWidget issues={issues} activeSprintName={activeSprintName} filter={filter} />
+          <SprintBriefingWidget key={filter} issues={issues} activeSprintName={activeSprintName} filter={filter} />
         ) : (
           <MasterPrompt />
         )}
