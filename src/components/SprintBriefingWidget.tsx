@@ -946,6 +946,8 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
   const cardDragSrc = useRef<string | null>(null);
   const cardFromGrip = useRef(false);
   const [cardOverKey, setCardOverKey] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ key: string; isExtra: boolean; title: string } | null>(null);
+  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     saveStored({ cards: cardData, extraCards, hiddenDevs: [...hiddenDevs], cardOrder });
@@ -962,8 +964,34 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
   }
 
   function deleteCard(key: string, isExtra: boolean) {
+    if (deleteTimerRef.current) {
+      clearTimeout(deleteTimerRef.current);
+      commitPendingDelete();
+    }
+    const title = cardData[key]?.title ?? key;
     if (isExtra) setExtraCards(prev => prev.filter(d => d !== key));
     else setHiddenDevs(prev => new Set([...prev, key]));
+    setPendingDelete({ key, isExtra, title });
+    deleteTimerRef.current = setTimeout(() => {
+      setPendingDelete(null);
+      deleteTimerRef.current = null;
+    }, 5000);
+  }
+
+  function commitPendingDelete() {
+    setPendingDelete(null);
+  }
+
+  function undoDelete() {
+    if (!pendingDelete) return;
+    if (deleteTimerRef.current) {
+      clearTimeout(deleteTimerRef.current);
+      deleteTimerRef.current = null;
+    }
+    const { key, isExtra } = pendingDelete;
+    if (isExtra) setExtraCards(prev => [...prev, key]);
+    else setHiddenDevs(prev => { const next = new Set(prev); next.delete(key); return next; });
+    setPendingDelete(null);
   }
 
   function addCard() {
@@ -1220,6 +1248,25 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
           <span className="text-xs text-[#555] group-hover:text-[#888]">חדש</span>
         </button>
       </div>
+
+      {pendingDelete && createPortal(
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 bg-[#323232] text-[#e0e0e0] text-sm rounded-lg px-4 py-3 shadow-xl">
+          <span>הכרטיסייה נמחקה</span>
+          <button
+            onClick={undoDelete}
+            className="text-[#4fc3f7] font-medium hover:text-[#81d4fa] transition-colors"
+          >
+            בטל
+          </button>
+          <button
+            onClick={commitPendingDelete}
+            className="text-[#999] hover:text-[#ccc] transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
