@@ -3,9 +3,10 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   BarChart, Bar, Legend, AreaChart, Area
 } from 'recharts';
-import { 
-  Shield, AlertTriangle, CheckCircle2, Clock, MessageSquare, 
-  Activity, Server, Calendar, Users, Bug, LayoutDashboard, Loader2, Layers, X, Sparkles
+import {
+  Shield, AlertTriangle, CheckCircle2, Clock, MessageSquare,
+  Activity, Server, Calendar, Users, Bug, LayoutDashboard, Loader2, Layers, X, Sparkles,
+  Search, HelpCircle, Bell
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -181,16 +182,13 @@ export default function App() {
   }, [filter]);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-12">
+    <div className="min-h-screen text-slate-900 font-sans pb-12" style={{ background: '#f6f7fb' }}>
       {/* HEADER */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <div className="flex items-center gap-3">
-              <div className="bg-indigo-600 p-2 rounded-lg">
-                <LayoutDashboard className="w-5 h-5 text-white" />
-              </div>
-              <h1 className="text-xl font-semibold tracking-tight text-slate-900">Scrum360</h1>
+            <div className="flex items-center">
+              <img src="/scrum360-wordmark-transparent.png" alt="Scrum360" className="h-9 w-auto object-contain" />
             </div>
             
             <nav className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
@@ -224,75 +222,85 @@ export default function App() {
             </nav>
           </div>
           
-          <div className="flex items-center gap-4">
-            <label htmlFor="global-filter" className="text-sm font-medium text-slate-500">
+          <div className="flex items-center gap-3">
+            <button className="w-[34px] h-[34px] rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors border-0" title="Search">
+              <Search className="w-4 h-4" />
+            </button>
+            <button className="w-[34px] h-[34px] rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors border-0" title="Help">
+              <HelpCircle className="w-4 h-4" />
+            </button>
+            <button className="w-[34px] h-[34px] rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors border-0" title="Notifications">
+              <Bell className="w-4 h-4" />
+            </button>
+            <label htmlFor="global-filter" className="text-sm text-slate-500 ml-1">
               Global Filter:
             </label>
             <select
               id="global-filter"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              className="bg-slate-100 border-none text-sm font-medium rounded-md py-2 pl-3 pr-8 focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+              className="bg-white border border-slate-200 text-sm font-medium rounded-lg py-1.5 pl-3 pr-8 focus:ring-2 focus:ring-violet-500 focus:border-violet-400 cursor-pointer"
             >
               <option value="v1">v1</option>
               <option value="mako">mako</option>
               <option value="N12">N12</option>
               <option value="12+">12+</option>
             </select>
+            <div className="w-[34px] h-[34px] rounded-full flex items-center justify-center text-white text-xs font-semibold cursor-pointer" style={{ background: 'linear-gradient(135deg, #6b4cf5, #1fb893)' }} title="Profile">
+              NR
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <main className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-[18px]">
         
         {activeTab === 'dashboard' ? (
           <>
             {/* SECURITY & ARCHITECTURE BANNER */}
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start gap-4">
-          <div className="bg-emerald-100 p-2 rounded-full shrink-0">
-            <Shield className="w-5 h-5 text-emerald-700" />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-emerald-900">Secure Backend Architecture Active</h3>
-            <p className="text-sm text-emerald-800 mt-1 leading-relaxed">
-              <strong>Zero-Client Exposure:</strong> All API keys for Jira, Firebase, and Slack/Microsoft are securely managed on the Node.js backend via <code className="bg-emerald-200 px-1 rounded text-xs">.env</code>. The frontend only receives aggregated, sanitized JSON payloads through an internal authenticated API layer. No direct external calls are made from the browser.
-            </p>
-          </div>
-        </div>
+            <div className="rounded-xl p-4 flex items-start gap-4 border" style={{ background: 'linear-gradient(180deg, #effaf3 0%, #ebf8f0 100%)', borderColor: '#cfeadb' }}>
+              <div className="shrink-0 w-9 h-9 rounded-[10px] flex items-center justify-center" style={{ background: '#d6f0e0', color: '#157246' }}>
+                <Shield className="w-[18px] h-[18px]" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 mb-1">Secure Backend Architecture Active</h3>
+                <p className="text-sm leading-relaxed" style={{ color: '#1a2138' }}>
+                  <strong style={{ color: '#136539' }}>Zero-Client Exposure:</strong> All API keys for Jira, Firebase, and Slack/Microsoft are securely managed on the Node.js backend via <code className="px-1.5 py-0.5 rounded text-xs font-mono" style={{ background: '#c8eed7', color: '#15633e', border: '1px solid #a5dec0' }}>.env</code>. The frontend only receives aggregated, sanitized JSON payloads through an internal authenticated API layer. No direct external calls are made from the browser.
+                </p>
+              </div>
+            </div>
 
         {/* JIRA CONNECTION STATUS */}
-        <div className={cn(
-          "border rounded-xl p-4 flex items-center justify-between",
-          jiraStatus.loading ? "bg-slate-50 border-slate-200" :
-          jiraStatus.configured ? "bg-indigo-50 border-indigo-200" : "bg-amber-50 border-amber-200"
-        )}>
-          <div className="flex items-center gap-3">
-            {jiraStatus.loading ? (
-              <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />
-            ) : jiraStatus.configured ? (
-              <CheckCircle2 className="w-5 h-5 text-indigo-600" />
-            ) : (
-              <AlertTriangle className="w-5 h-5 text-amber-600" />
-            )}
-            <div>
-              <h3 className={cn(
-                "text-sm font-semibold",
-                jiraStatus.loading ? "text-slate-700" :
-                jiraStatus.configured ? "text-indigo-900" : "text-amber-900"
-              )}>
-                Jira API Status
-              </h3>
-              <p className={cn(
-                "text-sm mt-0.5",
-                jiraStatus.loading ? "text-slate-500" :
-                jiraStatus.configured ? "text-indigo-700" : "text-amber-700"
-              )}>
-                {jiraStatus.message}
-              </p>
-            </div>
+        <div className="rounded-xl p-4 flex items-start gap-4 border" style={
+          jiraStatus.loading
+            ? { background: '#f8f9fc', borderColor: '#e7e9f1' }
+            : jiraStatus.configured
+              ? { background: 'linear-gradient(180deg, #eff3ff 0%, #ecf0fe 100%)', borderColor: '#d6dffb' }
+              : { background: 'linear-gradient(180deg, #fffbeb 0%, #fef9e7 100%)', borderColor: '#fde68a' }
+        }>
+          <div className="shrink-0 w-9 h-9 rounded-[10px] flex items-center justify-center" style={
+            jiraStatus.loading
+              ? { background: '#e7e9f1', color: '#6b7390' }
+              : jiraStatus.configured
+                ? { background: '#d8e2fb', color: '#2a4cd1' }
+                : { background: '#fef3c7', color: '#b45309' }
+          }>
+            {jiraStatus.loading
+              ? <Loader2 className="w-[18px] h-[18px] animate-spin" />
+              : jiraStatus.configured
+                ? <CheckCircle2 className="w-[18px] h-[18px]" />
+                : <AlertTriangle className="w-[18px] h-[18px]" />}
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-semibold text-slate-900 mb-0.5">Jira API Status</h3>
+            <p className="text-sm" style={{ color: '#1a2138' }}>
+              {jiraStatus.configured
+                ? <><strong style={{ color: '#2a4cd1' }}>Connected to Jira</strong> · {jiraStatus.message}</>
+                : jiraStatus.message}
+            </p>
           </div>
           {!jiraStatus.configured && !jiraStatus.loading && (
-            <div className="text-xs font-medium bg-amber-100 text-amber-800 px-3 py-1.5 rounded-lg">
+            <div className="text-xs font-medium bg-amber-100 text-amber-800 px-3 py-1.5 rounded-lg shrink-0">
               Action Required: Add Jira keys to Settings
             </div>
           )}
@@ -300,44 +308,54 @@ export default function App() {
 
         {/* KPI STRIP */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          <KpiCard 
-            title="Sprint Progress" 
-            value={sprintDay} 
-            sub={sprintDaysRemaining} 
-            icon={<Calendar className="w-5 h-5 text-indigo-600" />} 
+          <KpiCard
+            title="Sprint Progress"
+            value={sprintDay}
+            sub={sprintDaysRemaining}
+            icon={<Calendar className="w-[18px] h-[18px]" style={{ color: '#4a30c8' }} />}
+            iconBg="#efeaff"
+            accentColor="#6b4cf5"
             trend="on-track"
           />
-          <div onClick={() => setIsNewItemsModalOpen(true)} className="cursor-pointer transition-transform hover:scale-105">
-            <KpiCard 
-              title="New Items" 
-              value={newItemsCount.toString()} 
-              sub="Created today" 
-              icon={<Sparkles className="w-5 h-5 text-amber-600" />} 
+          <div onClick={() => setIsNewItemsModalOpen(true)} className="cursor-pointer">
+            <KpiCard
+              title="New Items"
+              value={newItemsCount.toString()}
+              sub="Created today"
+              icon={<Sparkles className="w-[18px] h-[18px]" style={{ color: '#7a4d05' }} />}
+              iconBg="#fff4dc"
+              accentColor="#ffb020"
               trend="neutral"
             />
           </div>
-          <KpiCard 
-            title="Crash-Free Users" 
-            value="99.8%" 
-            sub="Last 7 days (Firebase)" 
-            icon={<Activity className="w-5 h-5 text-emerald-600" />} 
+          <KpiCard
+            title="Crash-Free Users"
+            value="99.8%"
+            sub="Last 7 days (Firebase)"
+            icon={<Activity className="w-[18px] h-[18px]" style={{ color: '#16744a' }} />}
+            iconBg="#e9f7ef"
+            accentColor="#1fb893"
             trend="up"
           />
-          <div onClick={() => setIsStuckTasksModalOpen(true)} className="cursor-pointer transition-transform hover:scale-105">
-            <KpiCard 
-              title="Stuck Tasks" 
-              value={stuckTasksCount.toString()} 
-              sub={`> ${stuckTasksThreshold / 24} days in ${stuckTasksStatus}`} 
-              icon={<Clock className="w-5 h-5 text-rose-600" />} 
+          <div onClick={() => setIsStuckTasksModalOpen(true)} className="cursor-pointer">
+            <KpiCard
+              title="Stuck Tasks"
+              value={stuckTasksCount.toString()}
+              sub={`> ${stuckTasksThreshold / 24} days in ${stuckTasksStatus}`}
+              icon={<Clock className="w-[18px] h-[18px]" style={{ color: '#b03217' }} />}
+              iconBg="#fde6e1"
+              accentColor="#ff5b3a"
               trend="down"
             />
           </div>
-          <div onClick={() => setIsReleaseModalOpen(true)} className="cursor-pointer transition-transform hover:scale-105">
-            <KpiCard 
-              title="Release versions" 
-              value={releaseVersionsCount.toString()} 
-              sub="Click to view priorities" 
-              icon={<Layers className="w-5 h-5 text-indigo-600" />} 
+          <div onClick={() => setIsReleaseModalOpen(true)} className="cursor-pointer">
+            <KpiCard
+              title="Release versions"
+              value={releaseVersionsCount.toString()}
+              sub="Click to view priorities"
+              icon={<Layers className="w-[18px] h-[18px]" style={{ color: '#2a4cd1' }} />}
+              iconBg="#ecf1ff"
+              accentColor="#2f7bff"
               trend="neutral"
             />
           </div>
@@ -515,20 +533,34 @@ export default function App() {
 
 // --- HELPER COMPONENTS ---
 
-function KpiCard({ title, value, sub, icon, trend }: { title: string, value: string, sub: string, icon: React.ReactNode, trend: 'up' | 'down' | 'neutral' | 'on-track' }) {
+function KpiCard({ title, value, sub, icon, iconBg, accentColor, trend }: {
+  title: string;
+  value: string;
+  sub: string;
+  icon: React.ReactNode;
+  iconBg?: string;
+  accentColor?: string;
+  trend: 'up' | 'down' | 'neutral' | 'on-track';
+}) {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col">
-      <div className="flex items-start justify-between mb-4">
-        <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-          {icon}
-        </div>
-        {/* Optional trend indicator could go here */}
+    <div
+      className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col gap-2.5 relative overflow-hidden transition-all duration-150 hover:-translate-y-px hover:border-slate-300 hover:shadow-md group"
+    >
+      {accentColor && (
+        <div
+          className="absolute inset-x-0 top-0 h-[3px] opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+          style={{ background: accentColor }}
+        />
+      )}
+      <div
+        className="w-[38px] h-[38px] rounded-[10px] flex items-center justify-center"
+        style={{ background: iconBg ?? '#f1f3f9' }}
+      >
+        {icon}
       </div>
-      <div>
-        <p className="text-sm font-medium text-slate-500 mb-1">{title}</p>
-        <h3 className="text-2xl font-bold text-slate-900">{value}</h3>
-        <p className="text-xs text-slate-400 mt-1">{sub}</p>
-      </div>
+      <p className="text-[13px] font-medium text-slate-500">{title}</p>
+      <h3 className="text-[26px] font-bold leading-none tracking-tight text-slate-900" style={{ fontFamily: "'Poppins', 'Inter', sans-serif", letterSpacing: '-0.02em' }}>{value}</h3>
+      <p className="text-xs text-slate-400">{sub}</p>
     </div>
   );
 }
