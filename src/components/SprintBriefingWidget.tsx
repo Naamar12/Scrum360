@@ -102,15 +102,15 @@ function storageKey(filter: string) { return `${STORAGE_KEY_PREFIX}-${filter}`; 
 type CardStatus = 'empty' | 'draft' | 'ready';
 
 const CARD_COLORS = [
-  { key: 'default', swatch: '#444444', card: '#252525', header: '#2c2c2c', border: '#353535' },
-  { key: 'red',     swatch: '#b85c5c', card: '#2d1c1c', header: '#321f1f', border: '#4a2828' },
-  { key: 'orange',  swatch: '#c47c3a', card: '#2d2118', header: '#32261b', border: '#4a3520' },
-  { key: 'yellow',  swatch: '#b8a83a', card: '#2c2a18', header: '#302e1b', border: '#484220' },
-  { key: 'green',   swatch: '#4a9d5a', card: '#1c2d1e', header: '#1f3221', border: '#28482e' },
-  { key: 'teal',    swatch: '#3a9d8e', card: '#1c2b2a', header: '#1f302f', border: '#284644' },
-  { key: 'blue',    swatch: '#5b82c4', card: '#1c1f2d', header: '#1f2332', border: '#28304a' },
-  { key: 'purple',  swatch: '#8a5bc4', card: '#241c2d', header: '#291f32', border: '#3e284a' },
-  { key: 'pink',    swatch: '#c45b8a', card: '#2d1c24', header: '#321f29', border: '#4a283c' },
+  { key: 'default', swatch: '#94a3b8', card: '#FFFFFF', header: '#F4F7F9', border: '#E2E8F0' },
+  { key: 'red',     swatch: '#b85c5c', card: '#FFFFFF', header: '#FEF2F2', border: '#FECACA' },
+  { key: 'orange',  swatch: '#c47c3a', card: '#FFFFFF', header: '#FFF7ED', border: '#FED7AA' },
+  { key: 'yellow',  swatch: '#b8a83a', card: '#FFFFFF', header: '#FEFCE8', border: '#FDE68A' },
+  { key: 'green',   swatch: '#4a9d5a', card: '#FFFFFF', header: '#F0FDF4', border: '#BBF7D0' },
+  { key: 'teal',    swatch: '#3a9d8e', card: '#FFFFFF', header: '#F0FDFA', border: '#99F6E4' },
+  { key: 'blue',    swatch: '#5b82c4', card: '#FFFFFF', header: '#EFF6FF', border: '#BFDBFE' },
+  { key: 'purple',  swatch: '#8a5bc4', card: '#FFFFFF', header: '#FAF5FF', border: '#DDD6FE' },
+  { key: 'pink',    swatch: '#c45b8a', card: '#FFFFFF', header: '#FDF2F8', border: '#FBCFE8' },
 ] as const;
 type CardColorKey = typeof CARD_COLORS[number]['key'];
 function cardColorStyles(key?: string) {
@@ -158,14 +158,14 @@ function cardStatus(card?: StoredCard): CardStatus {
 
 function StatusDot({ status }: { status: CardStatus }) {
   const config = {
-    empty: { color: 'bg-[#444]', label: 'ריק' },
+    empty: { color: 'bg-slate-300', label: 'ריק' },
     draft: { color: 'bg-amber-500', label: 'טיוטה' },
     ready: { color: 'bg-emerald-500', label: 'מוכן' },
   }[status];
   return (
     <div className="flex items-center gap-1">
       <span className={`w-1.5 h-1.5 rounded-full ${config.color}`} />
-      <span className="text-[10px] text-[#666]">{config.label}</span>
+      <span className="text-[10px] text-slate-400">{config.label}</span>
     </div>
   );
 }
@@ -643,12 +643,12 @@ function DraggableCard({
             onDragOver={e => { if (item.text.trim() !== '') onDragOver(e, idx); }}
             onDrop={e => { if (item.text.trim() !== '') onDrop(e, idx); }}
             onDragEnd={onDragEnd}
-            className={`flex items-center gap-1.5 group/item rounded transition-colors ${overIdx === idx && dragSrc.current !== idx ? 'bg-[#333]' : ''}`}
+            className={`flex items-center gap-1.5 group/item rounded transition-colors ${overIdx === idx && dragSrc.current !== idx ? 'bg-slate-100' : ''}`}
           >
             <button
               onClick={() => { if (items.length > 1) changeItems(items.filter((_, i) => i !== idx)); }}
               tabIndex={-1}
-              className={`shrink-0 opacity-0 transition-opacity text-[#555] hover:text-red-400 ${item.text.trim() !== '' && items.length > 1 ? 'group-hover/item:opacity-100' : 'pointer-events-none'}`}
+              className={`shrink-0 opacity-0 transition-opacity text-slate-300 hover:text-red-400 ${item.text.trim() !== '' && items.length > 1 ? 'group-hover/item:opacity-100' : 'pointer-events-none'}`}
             >
               <X className={large ? 'w-4 h-4' : 'w-3 h-3'} />
             </button>
@@ -662,7 +662,7 @@ function DraggableCard({
                   rel="noopener noreferrer"
                   tabIndex={-1}
                   onClick={e => e.stopPropagation()}
-                  className={`shrink-0 opacity-0 transition-opacity text-[#555] hover:text-[#5b9bd5] ${item.text.trim() ? 'group-hover/item:opacity-100' : 'pointer-events-none'}`}
+                  className={`shrink-0 opacity-0 transition-opacity text-slate-300 hover:text-blue-500 ${item.text.trim() ? 'group-hover/item:opacity-100' : 'pointer-events-none'}`}
                   title="פתח בג'ירה"
                 >
                   <ExternalLink className={large ? 'w-4 h-4' : 'w-3 h-3'} />
@@ -676,7 +676,7 @@ function DraggableCard({
               placeholder="הוסף פריט..."
               dir="rtl"
               draggable={false}
-              className={`item-input flex-1 bg-transparent text-[#d4d4d4] focus:outline-none placeholder:text-[#444] min-w-0 ${large ? 'text-base py-0.5' : 'text-sm'}`}
+              className={`item-input flex-1 bg-transparent text-[#334155] focus:outline-none placeholder:text-slate-300 min-w-0 ${large ? 'text-base py-0.5' : 'text-sm'}`}
             />
             {(() => {
               const holders = item.text.trim()
@@ -697,7 +697,7 @@ function DraggableCard({
             })()}
             <TypePicker current={item.issueType} onChange={t => updateItemType(item.id, t)} isEmpty={item.text.trim() === ''} />
             <GripVertical
-              className={`text-[#444] shrink-0 opacity-0 transition-opacity ${item.text.trim() !== '' ? 'cursor-grab active:cursor-grabbing group-hover/item:opacity-100' : 'pointer-events-none'} ${large ? 'w-4 h-4' : 'w-3.5 h-3.5'}`}
+              className={`text-slate-300 shrink-0 opacity-0 transition-opacity ${item.text.trim() !== '' ? 'cursor-grab active:cursor-grabbing group-hover/item:opacity-100' : 'pointer-events-none'} ${large ? 'w-4 h-4' : 'w-3.5 h-3.5'}`}
               onMouseDown={() => { if (item.text.trim() !== '') fromGrip.current = true; }}
               onMouseUp={() => { fromGrip.current = false; }}
             />
@@ -712,7 +712,7 @@ function DraggableCard({
     <div className="flex justify-between mt-1">
       <button
         onClick={onDelete}
-        className="text-xs text-[#777] border border-[#404040] rounded-full px-3 py-1 hover:border-red-800 hover:text-red-400 transition-colors"
+        className="text-xs text-slate-500 border border-slate-200 rounded-full px-3 py-1 hover:border-red-300 hover:text-red-500 transition-colors"
       >
         מחק
       </button>
@@ -721,7 +721,7 @@ function DraggableCard({
           <button
             onClick={() => setSlackOpen(v => !v)}
             title="שלח לסלאק"
-            className="text-xs text-[#777] border border-[#404040] rounded-full px-3 py-1 hover:border-indigo-600 hover:text-indigo-400 transition-colors flex items-center gap-1"
+            className="text-xs text-slate-500 border border-slate-200 rounded-full px-3 py-1 hover:border-indigo-400 hover:text-indigo-500 transition-colors flex items-center gap-1"
           >
             <Send className="w-3 h-3" />
             סלאק
@@ -730,14 +730,14 @@ function DraggableCard({
         {undoItems && (
           <button
             onClick={() => { changeItems(undoItems); setUndoItems(null); }}
-            className="text-xs text-[#777] border border-[#404040] rounded-full px-3 py-1 hover:border-indigo-600 hover:text-indigo-400 transition-colors"
+            className="text-xs text-slate-500 border border-slate-200 rounded-full px-3 py-1 hover:border-indigo-400 hover:text-indigo-500 transition-colors"
           >
             שחזר
           </button>
         )}
         <button
           onClick={() => { setUndoItems(items); changeItems([makeItem()]); }}
-          className="text-xs text-[#777] border border-[#404040] rounded-full px-3 py-1 hover:border-[#666] hover:text-[#aaa] transition-colors"
+          className="text-xs text-slate-500 border border-slate-200 rounded-full px-3 py-1 hover:border-slate-300 hover:text-slate-600 transition-colors"
         >
           נקה
         </button>
@@ -745,8 +745,8 @@ function DraggableCard({
           onClick={onToggleReady}
           className={`text-xs border rounded-full px-3 py-1 transition-colors ${
             isReady
-              ? 'border-emerald-600 text-emerald-400 hover:border-red-700 hover:text-red-400'
-              : 'border-[#404040] text-[#777] hover:border-emerald-600 hover:text-emerald-400'
+              ? 'border-emerald-500 text-emerald-600 hover:border-red-400 hover:text-red-500'
+              : 'border-slate-200 text-slate-500 hover:border-emerald-400 hover:text-emerald-600'
           }`}
         >
           {isReady ? 'מוכן ✓' : 'סמן כמוכן'}
@@ -761,11 +761,11 @@ function DraggableCard({
       <div
         data-card-id={devKey}
         className="border rounded-xl group/card"
-        style={{ background: colors.card, borderColor: colors.border }}
+        style={{ background: colors.card, borderColor: colors.border, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
       >
         <div className="flex items-center gap-2 px-3 py-2">
           <GripVertical
-            className="w-4 h-4 text-[#444] cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover/card:opacity-100 transition-opacity"
+            className="w-4 h-4 text-slate-300 cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover/card:opacity-100 transition-opacity"
             onMouseDown={() => onCardGripMouseDown?.()}
             onMouseUp={() => onCardGripMouseUp?.()}
           />
@@ -773,11 +773,11 @@ function DraggableCard({
             value={title}
             onChange={e => changeTitle(e.target.value)}
             dir="rtl"
-            className="text-white text-sm font-semibold text-right bg-transparent focus:outline-none border-b border-transparent focus:border-[#555] pb-0.5 flex-1 min-w-0 transition-colors"
+            className="text-[#334155] text-sm font-semibold text-right bg-transparent focus:outline-none border-b border-transparent focus:border-slate-300 pb-0.5 flex-1 min-w-0 transition-colors"
           />
           <div className="flex items-center gap-2 shrink-0">
             {filledCount > 0 && (
-              <span className="text-[10px] text-[#666] bg-[#2d2d2d] border border-[#404040] px-1.5 py-0.5 rounded-full">{filledCount}</span>
+              <span className="text-[10px] text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full">{filledCount}</span>
             )}
             <StatusDot status={status} />
             <button
@@ -835,7 +835,7 @@ function DraggableCard({
                   placeholder="#channel או @user"
                   dir="ltr"
                   autoFocus
-                  className="flex-1 bg-[#2c2c2c] border border-[#404040] rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-[#555] placeholder:text-[#555]"
+                  className="flex-1 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700 focus:outline-none focus:border-slate-300 placeholder:text-slate-300"
                 />
                 <button
                   onClick={handleSendSlack}
@@ -863,12 +863,12 @@ function DraggableCard({
     <div
       data-card-id={devKey}
       className="border rounded-2xl flex flex-col group/card"
-      style={{ background: colors.card, borderColor: colors.border }}
+      style={{ background: colors.card, borderColor: colors.border, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
     >
       {/* Header – distinct background */}
       <div className="border-b px-3 py-2 flex items-center gap-2 rounded-t-2xl" style={{ background: colors.header, borderColor: colors.border }}>
         <GripVertical
-          className="w-4 h-4 text-[#444] cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover/card:opacity-100 transition-opacity"
+          className="w-4 h-4 text-slate-300 cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover/card:opacity-100 transition-opacity"
           onMouseDown={() => onCardGripMouseDown?.()}
           onMouseUp={() => onCardGripMouseUp?.()}
         />
@@ -876,13 +876,13 @@ function DraggableCard({
           value={title}
           onChange={e => changeTitle(e.target.value)}
           dir="rtl"
-          className="text-white text-sm font-semibold text-right bg-transparent focus:outline-none border-b border-transparent focus:border-[#555] pb-0.5 flex-1 min-w-0 transition-colors"
+          className="text-[#334155] text-sm font-semibold text-right bg-transparent focus:outline-none border-b border-transparent focus:border-slate-300 pb-0.5 flex-1 min-w-0 transition-colors"
         />
         <div className="flex items-center gap-1.5 shrink-0">
           <div ref={colorPickerRef} className="relative">
             <button
               onClick={() => setColorPickerOpen(v => !v)}
-              className="text-[#555] hover:text-[#888] transition-colors opacity-0 group-hover/card:opacity-100 p-0.5"
+              className="text-slate-400 hover:text-slate-600 transition-colors opacity-0 group-hover/card:opacity-100 p-0.5"
               title="שנה צבע"
             >
               <Palette className="w-3.5 h-3.5" />
@@ -903,7 +903,7 @@ function DraggableCard({
           </div>
           <button
             onClick={() => setModalOpen(true)}
-            className="text-[#555] hover:text-[#888] transition-colors opacity-0 group-hover/card:opacity-100 p-0.5"
+            className="text-slate-400 hover:text-slate-600 transition-colors opacity-0 group-hover/card:opacity-100 p-0.5"
             title="הגדל קוביה"
           >
             <Maximize2 className="w-3.5 h-3.5" />
@@ -928,7 +928,7 @@ function DraggableCard({
             <button
               ref={backlogTriggerRef}
               onClick={() => setBacklogOpen(v => !v)}
-              className="flex items-center gap-1.5 text-[11px] text-[#777] hover:text-[#aaa] transition-colors group/backlog"
+              className="flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-slate-600 transition-colors group/backlog"
             >
               <Plus className="w-3 h-3 shrink-0 text-indigo-500 group-hover/backlog:text-indigo-400 transition-colors" />
               <span>הוסף מהבקלוג</span>
@@ -960,7 +960,7 @@ function DraggableCard({
             placeholder="#channel או @user"
             dir="ltr"
             autoFocus
-            className="flex-1 bg-[#2c2c2c] border border-[#404040] rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-[#555] placeholder:text-[#555]"
+            className="flex-1 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700 focus:outline-none focus:border-slate-300 placeholder:text-slate-300"
           />
           <button
             onClick={handleSendSlack}
@@ -1001,7 +1001,7 @@ function DraggableCard({
                 value={title}
                 onChange={e => changeTitle(e.target.value)}
                 dir="rtl"
-                className="text-white text-lg font-bold text-right bg-transparent focus:outline-none border-b border-transparent focus:border-[#555] pb-0.5 flex-1 min-w-0 transition-colors"
+                className="text-[#334155] text-lg font-bold text-right bg-transparent focus:outline-none border-b border-transparent focus:border-slate-300 pb-0.5 flex-1 min-w-0 transition-colors"
               />
               <div className="flex items-center gap-2 shrink-0">
                 <StatusDot status={status} />
@@ -1024,7 +1024,7 @@ function DraggableCard({
                   <button
                     ref={backlogTriggerRef}
                     onClick={() => setBacklogOpen(v => !v)}
-                    className="flex items-center gap-2 text-sm text-[#777] hover:text-[#aaa] transition-colors group/backlog"
+                    className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-600 transition-colors group/backlog"
                   >
                     <Plus className="w-4 h-4 shrink-0 text-indigo-500 group-hover/backlog:text-indigo-400 transition-colors" />
                     <span>הוסף מהבקלוג</span>
@@ -1056,7 +1056,7 @@ function DraggableCard({
                   placeholder="#channel או @user"
                   dir="ltr"
                   autoFocus
-                  className="flex-1 bg-[#2c2c2c] border border-[#404040] rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-[#555] placeholder:text-[#555]"
+                  className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-700 focus:outline-none focus:border-slate-300 placeholder:text-slate-300"
                 />
                 <button
                   onClick={handleSendSlack}
@@ -1078,7 +1078,7 @@ function DraggableCard({
               <div className="flex justify-between mt-3">
                 <button
                   onClick={onDelete}
-                  className="text-sm text-[#777] border border-[#404040] rounded-full px-4 py-1.5 hover:border-red-800 hover:text-red-400 transition-colors"
+                  className="text-sm text-slate-500 border border-slate-200 rounded-full px-4 py-1.5 hover:border-red-300 hover:text-red-500 transition-colors"
                 >
                   מחק
                 </button>
@@ -1087,7 +1087,7 @@ function DraggableCard({
                     <button
                       onClick={() => setSlackOpen(v => !v)}
                       title="שלח לסלאק"
-                      className="text-sm text-[#777] border border-[#404040] rounded-full px-4 py-1.5 hover:border-indigo-600 hover:text-indigo-400 transition-colors flex items-center gap-1.5"
+                      className="text-sm text-slate-500 border border-slate-200 rounded-full px-4 py-1.5 hover:border-indigo-400 hover:text-indigo-500 transition-colors flex items-center gap-1.5"
                     >
                       <Send className="w-3.5 h-3.5" />
                       סלאק
@@ -1096,14 +1096,14 @@ function DraggableCard({
                   {undoItems && (
                     <button
                       onClick={() => { changeItems(undoItems); setUndoItems(null); }}
-                      className="text-sm text-[#777] border border-[#404040] rounded-full px-4 py-1.5 hover:border-indigo-600 hover:text-indigo-400 transition-colors"
+                      className="text-sm text-slate-500 border border-slate-200 rounded-full px-4 py-1.5 hover:border-indigo-400 hover:text-indigo-500 transition-colors"
                     >
                       שחזר
                     </button>
                   )}
                   <button
                     onClick={() => { setUndoItems(items); changeItems([makeItem()]); }}
-                    className="text-sm text-[#777] border border-[#404040] rounded-full px-4 py-1.5 hover:border-[#666] hover:text-[#aaa] transition-colors"
+                    className="text-sm text-slate-500 border border-slate-200 rounded-full px-4 py-1.5 hover:border-slate-300 hover:text-slate-600 transition-colors"
                   >
                     נקה
                   </button>
@@ -1111,8 +1111,8 @@ function DraggableCard({
                     onClick={onToggleReady}
                     className={`text-sm border rounded-full px-4 py-1.5 transition-colors ${
                       isReady
-                        ? 'border-emerald-600 text-emerald-400 hover:border-red-700 hover:text-red-400'
-                        : 'border-[#404040] text-[#777] hover:border-emerald-600 hover:text-emerald-400'
+                        ? 'border-emerald-500 text-emerald-600 hover:border-red-400 hover:text-red-500'
+                        : 'border-slate-200 text-slate-500 hover:border-emerald-400 hover:text-emerald-600'
                     }`}
                   >
                     {isReady ? 'מוכן ✓' : 'סמן כמוכן'}
@@ -1667,12 +1667,12 @@ export default function SprintBriefingWidget({ issues, activeSprintName, filter 
         ) : (
           <button
             onClick={addCard}
-            className={`bg-[#252525] border border-dashed border-[#404040] rounded-2xl flex flex-col items-center justify-center gap-2 hover:border-[#666] transition-colors group ${
+            className={`bg-white border border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center gap-2 hover:border-slate-400 transition-colors group ${
               viewMode === 'grid' ? 'p-4 min-h-[120px]' : 'p-3 rounded-xl min-h-[44px] flex-row'
             }`}
           >
-            <Plus className={`text-[#555] group-hover:text-[#888] ${viewMode === 'grid' ? 'w-5 h-5' : 'w-4 h-4'}`} />
-            <span className="text-xs text-[#555] group-hover:text-[#888]">חדש</span>
+            <Plus className={`text-slate-400 group-hover:text-slate-500 ${viewMode === 'grid' ? 'w-5 h-5' : 'w-4 h-4'}`} />
+            <span className="text-xs text-slate-400 group-hover:text-slate-500">חדש</span>
           </button>
         )}
       </div>

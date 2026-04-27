@@ -246,21 +246,21 @@ export default function App() {
   }, [filter]);
 
   return (
-    <div className="min-h-screen text-slate-900 font-sans pb-12" style={{ background: '#f6f7fb' }}>
+    <div className="min-h-screen text-slate-900 font-sans pb-12" style={{ background: '#F0F2F5' }}>
       {/* HEADER */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center">
+        <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex justify-between">
+          <div className="flex gap-8">
+            <div className="flex items-center self-center">
               <img src="/scrum360-wordmark-transparent.png" alt="Scrum360" className="h-9 w-auto object-contain" />
             </div>
-            
-            <nav className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
-              <button 
+
+            <nav className="hidden md:flex self-stretch">
+              <button
                 onClick={() => setActiveTab('dashboard')}
                 className={cn(
-                  "px-3 py-1.5 text-sm font-medium rounded-md transition-colors", 
-                  activeTab === 'dashboard' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  "px-4 flex items-center text-sm font-medium border-b-2 transition-colors",
+                  activeTab === 'dashboard' ? "border-violet-500 text-slate-900" : "border-transparent text-slate-400 hover:text-slate-600"
                 )}
               >
                 Dashboard
@@ -268,8 +268,8 @@ export default function App() {
               <button
                 onClick={() => setActiveTab('master')}
                 className={cn(
-                  "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
-                  activeTab === 'master' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  "px-4 flex items-center text-sm font-medium border-b-2 transition-colors",
+                  activeTab === 'master' ? "border-violet-500 text-slate-900" : "border-transparent text-slate-400 hover:text-slate-600"
                 )}
               >
                 Master Prompt
@@ -277,19 +277,16 @@ export default function App() {
               <button
                 onClick={() => setActiveTab('briefing')}
                 className={cn(
-                  "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
-                  activeTab === 'briefing' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  "px-4 flex items-center text-sm font-medium border-b-2 transition-colors",
+                  activeTab === 'briefing' ? "border-violet-500 text-slate-900" : "border-transparent text-slate-400 hover:text-slate-600"
                 )}
               >
                 Sprint Briefing
               </button>
             </nav>
           </div>
-          
-          <div className="flex items-center gap-3">
-            <label className="text-sm text-slate-500 ml-1">
-              Team:
-            </label>
+
+          <div className="flex items-center gap-3 self-center">
             <FilterImageDropdown value={filter} onChange={setFilter} />
             <div className="w-[34px] h-[34px] rounded-full flex items-center justify-center text-white text-xs font-semibold cursor-pointer" style={{ background: 'linear-gradient(135deg, #6b4cf5, #1fb893)' }} title="Profile">
               NR
