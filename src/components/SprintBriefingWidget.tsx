@@ -275,7 +275,6 @@ function BacklogImportPopup({
   const [showAll, setShowAll] = useState(false);
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'story' | 'bug' | 'task'>('all');
-  const [assigneeFilter, setAssigneeFilter] = useState<string | null>(null);
 
   useEffect(() => { searchRef.current?.focus(); }, []);
 
@@ -300,17 +299,10 @@ function BacklogImportPopup({
   const currentTexts = new Set(currentItems.map(i => i.text.trim()));
   const typeOrder: Record<string, number> = { story: 0, bug: 1, task: 2 };
   const sourceIssues = showAll && allBacklogIssues ? allBacklogIssues : backlogIssues;
-  const assignees = useMemo(() =>
-    showAll && allBacklogIssues
-      ? [...new Set(allBacklogIssues.map(i => i.assignee).filter((a): a is string => !!a && a !== 'Unassigned'))]
-      : [],
-    [showAll, allBacklogIssues],
-  );
   const available = sourceIssues
     .filter(i => !['done', 'closed', 'resolved'].includes(i.status?.toLowerCase() ?? ''))
     .filter(i => typeFilter === 'all' || issueCategory(i.type) === typeFilter)
-    .filter(i => !assigneeFilter || i.assignee === assigneeFilter)
-    .filter(i => !query || i.summary.toLowerCase().includes(query.toLowerCase()) || (showAll && i.assignee?.toLowerCase().includes(query.toLowerCase())))
+    .filter(i => !query || i.summary.toLowerCase().includes(query.toLowerCase()))
     .sort((a, b) => (typeOrder[issueCategory(a.type) ?? 'task'] ?? 2) - (typeOrder[issueCategory(b.type) ?? 'task'] ?? 2));
 
   return (
@@ -320,7 +312,7 @@ function BacklogImportPopup({
         <div className="flex items-center gap-2">
           {allBacklogIssues && allBacklogIssues.length > backlogIssues.length && (
             <button
-              onClick={() => { setShowAll(v => !v); setAssigneeFilter(null); }}
+              onClick={() => setShowAll(v => !v)}
               className={`text-[10px] transition-colors ${showAll ? 'text-[#5b9bd5]' : 'text-[#555] hover:text-[#888]'}`}
             >
               הצג הכל
@@ -358,23 +350,7 @@ function BacklogImportPopup({
           </button>
         ))}
       </div>
-      {assignees.length > 0 && (
-        <div className="flex flex-wrap gap-1 px-1">
-          {assignees.map(a => {
-            const first = a.split(' ')[0];
-            const active = assigneeFilter === a;
-            return (
-              <button
-                key={a}
-                onClick={() => setAssigneeFilter(active ? null : a)}
-                className={`text-[9px] px-2 py-0.5 rounded-full transition-colors ${active ? 'bg-[#1e3a4a] text-[#5b9bd5]' : 'text-[#555] hover:text-[#888]'}`}
-              >
-                {first}
-              </button>
-            );
-          })}
-        </div>
-      )}
+
       {available.length === 0 ? (
         <p className="text-xs text-[#555] px-1 py-2 text-center">אין פריטים</p>
       ) : (
