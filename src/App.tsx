@@ -118,6 +118,7 @@ export default function App() {
 
   // Fetch Jira data from our secure backend
   useEffect(() => {
+    setIssues([]); // Clear stale data so SprintBriefing detects the filter change
     async function fetchJiraData() {
       setJiraStatus(prev => ({ ...prev, loading: true }));
       try {
@@ -461,7 +462,7 @@ export default function App() {
 
           </>
         ) : activeTab === 'briefing' ? (
-          <SprintBriefingWidget issues={issues} activeSprintName={activeSprintName} />
+          <SprintBriefingWidget issues={issues} activeSprintName={activeSprintName} filter={filter} />
         ) : (
           <MasterPrompt />
         )}

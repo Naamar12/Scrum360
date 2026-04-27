@@ -6,6 +6,7 @@ import { JiraIssue } from './ItemDistributionWidget';
 interface Props {
   issues: JiraIssue[];
   activeSprintName?: string;
+  filter?: string;
 }
 
 interface CardItem { id: number; text: string; issueType?: string; }
@@ -438,6 +439,10 @@ function BacklogImportPopup({
   );
 }
 
+// Shared signal: target card's onDrop sets this; source card's onDragEnd reads it.
+// onDrop always fires before onDragEnd, so this handshake is safe.
+let pendingCrossCardRemoval: { devKey: string; itemId: number } | null = null;
+
 function DraggableCard({
   devKey, initialTitle, initialItems, isReady, onTitleChange, onItemsChange, onDelete, onToggleReady, onSendToSlack,
   onCardGripMouseDown, onCardGripMouseUp, compact, backlogIssues, allBacklogIssues, initialBgColor, onBgColorChange,
@@ -480,6 +485,8 @@ function DraggableCard({
   const colorPickerRef = useRef<HTMLDivElement>(null);
   const dragSrc = useRef<number | null>(null);
   const fromGrip = useRef(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [isDropTarget, setIsDropTarget] = useState(false);
 
   useEffect(() => {
     if (!colorPickerOpen) return;
@@ -545,6 +552,8 @@ function DraggableCard({
     e.stopPropagation();
     dragSrc.current = idx;
     e.dataTransfer.effectAllowed = 'move';
+    const item = items[idx];
+    e.dataTransfer.setData('sprint-item', JSON.stringify({ sourceDevKey: devKey, itemId: item.id, text: item.text, issueType: item.issueType }));
   }
   function onDragOver(e: React.DragEvent, idx: number) { e.preventDefault(); e.stopPropagation(); setOverIdx(idx); }
   function onDrop(e: React.DragEvent, idx: number) {
@@ -557,7 +566,36 @@ function DraggableCard({
     }
     dragSrc.current = null; fromGrip.current = false; setOverIdx(null);
   }
-  function onDragEnd() { dragSrc.current = null; fromGrip.current = false; setOverIdx(null); }
+  function onDragEnd() {
+    // If this card's item was accepted by another card, remove it here.
+    // onDrop on target always fires before onDragEnd on source.
+    if (pendingCrossCardRemoval?.devKey === devKey) {
+      const idToRemove = pendingCrossCardRemoval.itemId;
+      pendingCrossCardRemoval = null;
+      changeItems(items.filter(i => i.id !== idToRemove));
+    }
+    dragSrc.current = null; fromGrip.current = false; setOverIdx(null);
+  }
+
+  function onBodyDragOver(e: React.DragEvent) {
+    if (!e.dataTransfer.types.includes('sprint-item')) return;
+    e.preventDefault(); e.stopPropagation();
+    setIsDropTarget(true);
+  }
+  function onBodyDragLeave(e: React.DragEvent) {
+    if (bodyRef.current && !bodyRef.current.contains(e.relatedTarget as Node)) setIsDropTarget(false);
+  }
+  function onBodyDrop(e: React.DragEvent) {
+    setIsDropTarget(false);
+    const raw = e.dataTransfer.getData('sprint-item');
+    if (!raw) return;
+    e.preventDefault(); e.stopPropagation();
+    const { sourceDevKey, itemId, text, issueType } = JSON.parse(raw);
+    if (sourceDevKey === devKey) return; // same card — reorder handles it
+    pendingCrossCardRemoval = { devKey: sourceDevKey, itemId };
+    const filled = items.filter(it => it.text.trim() !== '');
+    changeItems([...filled, makeItem(text, issueType)]);
+  }
 
   async function handleSendSlack() {
     if (!slackChannel.trim()) return;
@@ -750,7 +788,15 @@ function DraggableCard({
           </div>
         </div>
         {expanded && (
-          <div className="border-t px-3 py-2 flex flex-col gap-2" style={{ borderColor: colors.border }} onClick={handleBodyClick}>
+          <div
+            ref={bodyRef}
+            className="border-t px-3 py-2 flex flex-col gap-2"
+            style={{ borderColor: colors.border }}
+            onClick={handleBodyClick}
+            onDragOver={onBodyDragOver}
+            onDragLeave={onBodyDragLeave}
+            onDrop={onBodyDrop}
+          >
             {itemsBody}
             {((backlogIssues && backlogIssues.length > 0) || (allBacklogIssues && allBacklogIssues.length > 0)) && (
               <div className="relative">
@@ -866,7 +912,14 @@ function DraggableCard({
       </div>
 
       {/* Body */}
-      <div className="flex-1 px-3 pt-2.5 pb-1 min-h-[120px]" onClick={handleBodyClick}>
+      <div
+        ref={bodyRef}
+        className="flex-1 px-3 pt-2.5 pb-1 min-h-[120px]"
+        onClick={handleBodyClick}
+        onDragOver={onBodyDragOver}
+        onDragLeave={onBodyDragLeave}
+        onDrop={onBodyDrop}
+      >
         {itemsBody}
         {/* Backlog import button */}
         {((backlogIssues && backlogIssues.length > 0) || (allBacklogIssues && allBacklogIssues.length > 0)) && (
@@ -1099,7 +1152,7 @@ function matchSection(title: string, sections: Record<string, string>): string |
   return undefined;
 }
 
-export default function SprintBriefingWidget({ issues, activeSprintName }: Props) {
+export default function SprintBriefingWidget({ issues, activeSprintName, filter }: Props) {
   const developers = useMemo(() => {
     const seen = new Set<string>();
     const list: string[] = [];
@@ -1136,7 +1189,7 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
   }, [issues]);
 
   const allBacklogIssues = useMemo(
-    () => issues.filter(i => i.sprintState === 'backlog' && issueCategory(i.type) !== null),
+    () => issues.filter(i => issueCategory(i.type) !== null),
     [issues],
   );
 
@@ -1166,24 +1219,54 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
   const [hiddenDevs, setHiddenDevs] = useState<Set<string>>(new Set(stored.hiddenDevs));
   const [cardOrder, setCardOrder] = useState<string[]>(stored.cardOrder ?? []);
 
+  // Detect when issuesByDev transitions from empty→non-empty after a filter change.
+  // App.tsx clears issues[] on every filter change, which makes issuesByDev go empty.
+  // When new data arrives and issuesByDev becomes non-empty again, we force-repopulate.
+  // On the very first load we skip force-repopulate to respect saved localStorage data.
+  const hasEverLoadedRef = useRef(false);
+  const wasIssuesByDevEmptyRef = useRef(true);
+
   // Auto-populate cards whenever Jira issues load or the filter changes.
-  // The useState initializer above runs before the async Jira fetch completes,
-  // so issuesByDev is always empty at mount time — this effect catches the update.
   useEffect(() => {
-    if (Object.keys(issuesByDev).length === 0) return;
+    const isEmpty = Object.keys(issuesByDev).length === 0;
+    const comingFromEmpty = wasIssuesByDevEmptyRef.current && !isEmpty && hasEverLoadedRef.current;
+    wasIssuesByDevEmptyRef.current = isEmpty;
+    if (isEmpty) return;
+    const forceRepopulate = comingFromEmpty;
+    if (!hasEverLoadedRef.current) hasEverLoadedRef.current = true;
+
+    const typeOrder: Record<string, number> = { story: 0, bug: 1, task: 2 };
+    const sortIssues = (devIssues: JiraIssue[]) =>
+      devIssues
+        .filter(i => issueCategory(i.type) !== null)
+        .sort((a, b) => (typeOrder[issueCategory(a.type) ?? 'task'] ?? 2) - (typeOrder[issueCategory(b.type) ?? 'task'] ?? 2))
+        .map(i => makeItem(i.summary, i.type));
     setCardData(prev => {
       const updated = { ...prev };
       let changed = false;
       for (const dev of Object.keys(issuesByDev)) {
-        if (!updated[dev] || !updated[dev].items?.some(i => i.text.trim())) {
-          const devIssues = issuesByDev[dev] ?? [];
+        const devIssues = issuesByDev[dev] ?? [];
+        if (forceRepopulate || !updated[dev] || !updated[dev].items?.some(i => i.text.trim())) {
+          // Populate fresh (filter changed, or card is empty)
           updated[dev] = {
             title: updated[dev]?.title ?? dev,
-            items: devIssues.filter(i => issueCategory(i.type) !== null).map(i => makeItem(i.summary, i.type)),
+            items: sortIssues(devIssues),
             generatedContent: updated[dev]?.generatedContent,
             bgColor: updated[dev]?.bgColor,
           };
           changed = true;
+        } else {
+          // Card has items: re-sort by issueType (Story→Bug→Task, untyped last)
+          const current = updated[dev].items ?? [];
+          const sorted = [...current].sort((a, b) => {
+            const oa = a.issueType ? (typeOrder[issueCategory(a.issueType) ?? ''] ?? 2) : 3;
+            const ob = b.issueType ? (typeOrder[issueCategory(b.issueType) ?? ''] ?? 2) : 3;
+            return oa - ob;
+          });
+          if (sorted.some((item, i) => item.id !== current[i]?.id)) {
+            updated[dev] = { ...updated[dev], items: sorted };
+            changed = true;
+          }
         }
       }
       return changed ? updated : prev;
@@ -1266,13 +1349,17 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
         sprintName: activeSprintName,
       }));
     } catch {}
-    // Re-populate from current Jira active sprint
+    // Re-populate from current Jira active sprint, sorted Story→Bug→Task
+    const typeOrder: Record<string, number> = { story: 0, bug: 1, task: 2 };
     const fresh: Record<string, StoredCard> = {};
     for (const dev of Object.keys(issuesByDev)) {
       const devIssues = issuesByDev[dev] ?? [];
       fresh[dev] = {
         title: dev,
-        items: devIssues.filter(i => issueCategory(i.type) !== null).map(i => makeItem(i.summary, i.type)),
+        items: devIssues
+          .filter(i => issueCategory(i.type) !== null)
+          .sort((a, b) => (typeOrder[issueCategory(a.type) ?? 'task'] ?? 2) - (typeOrder[issueCategory(b.type) ?? 'task'] ?? 2))
+          .map(i => makeItem(i.summary, i.type)),
       };
     }
     setCardData(fresh);
@@ -1375,14 +1462,26 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
   const readyCount = allCards.filter(({ cardKey }) => cardStatus(cardData[cardKey]) === 'ready').length;
 
   const filteredCards = useMemo(() => {
-    if (!searchQuery.trim()) return allCards;
-    const q = searchQuery.trim().toLowerCase();
-    return allCards.filter(({ cardKey }) => {
-      const card = cardData[cardKey];
-      const title = (card?.title ?? cardKey).toLowerCase();
-      if (title.includes(q)) return true;
-      return card?.items?.some(i => i.text.toLowerCase().includes(q));
-    });
+    const base = !searchQuery.trim() ? allCards : (() => {
+      const q = searchQuery.trim().toLowerCase();
+      return allCards.filter(({ cardKey }) => {
+        const card = cardData[cardKey];
+        const title = (card?.title ?? cardKey).toLowerCase();
+        if (title.includes(q)) return true;
+        return card?.items?.some(i => i.text.toLowerCase().includes(q));
+      });
+    })();
+
+    // Push cards that are significantly longer than the rest to the bottom.
+    const filledCount = (cardKey: string) =>
+      (cardData[cardKey]?.items ?? []).filter(i => i.text.trim()).length;
+    const counts = base.map(({ cardKey }) => filledCount(cardKey));
+    const avg = counts.reduce((a, b) => a + b, 0) / (counts.length || 1);
+    const threshold = Math.max(avg * 1.5, avg + 2);
+
+    const normal = base.filter((_, i) => counts[i] <= threshold);
+    const long   = base.filter((_, i) => counts[i] >  threshold);
+    return [...normal, ...long];
   }, [allCards, cardData, searchQuery]);
 
   return (
@@ -1516,8 +1615,8 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
               key={cardKey}
               draggable
               onDragStart={e => onCardDragStart(e, cardKey)}
-              onDragOver={e => onCardDragOver(e, cardKey)}
-              onDrop={e => onCardDrop(e, cardKey)}
+              onDragOver={e => { if (e.dataTransfer.types.includes('sprint-item')) return; onCardDragOver(e, cardKey); }}
+              onDrop={e => { if (e.dataTransfer.types.includes('sprint-item')) return; onCardDrop(e, cardKey); }}
               onDragEnd={onCardDragEnd}
               className={`transition-transform ${isOver ? (viewMode === 'grid' ? 'scale-[1.02] ring-2 ring-indigo-500/40 rounded-2xl' : 'ring-1 ring-indigo-500/40 rounded-xl') : ''}`}
             >

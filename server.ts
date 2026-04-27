@@ -19,6 +19,10 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  // In-memory cache for Jira responses (per team, 60s TTL)
+  const jiraCache = new Map<string, { data: any; ts: number }>();
+  const JIRA_CACHE_TTL = 60_000;
+
   // Jira API Endpoint
   app.get("/api/jira/sprint", async (req, res) => {
     const { JIRA_DOMAIN, JIRA_EMAIL, JIRA_API_TOKEN } = process.env;
@@ -68,16 +72,22 @@ async function startServer() {
       });
     }
 
+    // Serve from cache if still fresh
+    const cached = jiraCache.get(team);
+    if (cached && Date.now() - cached.ts < JIRA_CACHE_TTL) {
+      return res.json(cached.data);
+    }
+
     try {
       // 1. Create Basic Auth token
       const auth = Buffer.from(`${JIRA_EMAIL}:${JIRA_API_TOKEN}`).toString('base64');
-      
+
       // Sanitize the JIRA_DOMAIN in case the user accidentally included 'https://' or '.atlassian.net'
       let cleanDomain = JIRA_DOMAIN.trim();
       cleanDomain = cleanDomain.replace(/^https?:\/\//, ''); // Remove http:// or https://
       cleanDomain = cleanDomain.replace(/\.atlassian\.net.*$/, ''); // Remove .atlassian.net and anything after it
       cleanDomain = cleanDomain.replace(/\/.*$/, ''); // Remove any trailing paths
-      
+
       // Sanitize the boardId to extract only the numeric part
       // Users might accidentally paste "KESHET/boards/91" or "?rapidView=91"
       let cleanBoardId = boardId;
@@ -86,16 +96,19 @@ async function startServer() {
         cleanBoardId = match[1];
       }
 
-      // 2. Fetch active and future sprints from Jira
+      const headers = { 'Authorization': `Basic ${auth}`, 'Accept': 'application/json' };
+      const jql = encodeURIComponent('resolution = Unresolved ORDER BY priority DESC');
+      const maxResults = 200;
+      const issuesBase = `https://${cleanDomain}.atlassian.net/rest/agile/1.0/board/${cleanBoardId}/issue?jql=${jql}&maxResults=${maxResults}&fields=summary,issuetype,status,assignee,priority,sprint,resolution,fixVersions,parent,statuscategorychangedate,updated,created`;
+
+      // 2. Fetch sprints and first issues page in parallel
       const sprintsUrl = `https://${cleanDomain}.atlassian.net/rest/agile/1.0/board/${cleanBoardId}/sprint?state=active,future`;
-      console.log(`Fetching from Jira: ${sprintsUrl}`); // Helpful for debugging
-      
-      const sprintsResponse = await fetch(sprintsUrl, {
-        headers: { 
-          'Authorization': `Basic ${auth}`, 
-          'Accept': 'application/json' 
-        }
-      });
+      console.log(`Fetching from Jira: ${sprintsUrl}`);
+
+      const [sprintsResponse, firstPageResponse] = await Promise.all([
+        fetch(sprintsUrl, { headers }),
+        fetch(`${issuesBase}&startAt=0`, { headers }),
+      ]);
 
       let activeSprintData = null;
       let activeSprintId: number | null = null;
@@ -203,44 +216,31 @@ async function startServer() {
         }
       }
 
-      // 3. Fetch all unresolved issues for the board (Active, Future, Backlog) with pagination
-      // Exclude 'Done' or resolved items
-      const jql = encodeURIComponent('resolution = Unresolved ORDER BY priority DESC');
-      let allIssues: any[] = [];
-      let startAt = 0;
-      const maxResults = 100;
-      let isLast = false;
-
-      while (!isLast && allIssues.length < 500) { // Cap at 500 issues to prevent timeouts
-        const issuesUrl = `https://${cleanDomain}.atlassian.net/rest/agile/1.0/board/${cleanBoardId}/issue?jql=${jql}&startAt=${startAt}&maxResults=${maxResults}&fields=summary,issuetype,status,assignee,priority,sprint,resolution,fixVersions,parent,statuscategorychangedate,updated,created`;
-        
-        try {
-          const issuesResponse = await fetch(issuesUrl, {
-            headers: { 
-              'Authorization': `Basic ${auth}`, 
-              'Accept': 'application/json' 
-            }
-          });
-
-          if (!issuesResponse.ok) {
-            console.error(`Failed to fetch issues at startAt ${startAt}: ${issuesResponse.status}`);
-            break;
-          }
-
-          const issuesData = await issuesResponse.json();
-          const fetchedIssues = issuesData.issues || [];
-          allIssues = allIssues.concat(fetchedIssues);
-          
-          if (fetchedIssues.length < maxResults || (issuesData.total && startAt + fetchedIssues.length >= issuesData.total)) {
-            isLast = true;
-          } else {
-            startAt += maxResults;
-          }
-        } catch (e) {
-          console.error("Error fetching issues:", e);
-          break;
-        }
+      // 3. Process first page and fetch remaining pages in parallel
+      if (!firstPageResponse.ok) {
+        console.error(`Failed to fetch first issues page: ${firstPageResponse.status}`);
       }
+      const firstPageData = firstPageResponse.ok ? await firstPageResponse.json() : { issues: [], total: 0 };
+      const firstIssues: any[] = firstPageData.issues || [];
+      const total: number = firstPageData.total || 0;
+
+      // Fetch all remaining pages simultaneously (cap at 500 total)
+      const cap = Math.min(total, 500);
+      const remainingStarts: number[] = [];
+      for (let s = maxResults; s < cap; s += maxResults) remainingStarts.push(s);
+
+      const remainingPages = await Promise.all(
+        remainingStarts.map(s =>
+          fetch(`${issuesBase}&startAt=${s}`, { headers })
+            .then(r => r.ok ? r.json() : { issues: [] })
+            .catch(() => ({ issues: [] }))
+        )
+      );
+
+      const allIssues: any[] = [
+        ...firstIssues,
+        ...remainingPages.flatMap((d: any) => d.issues || []),
+      ];
 
       const processedIssues = allIssues.map((issue: any) => {
         let sprintState = 'backlog';
@@ -298,7 +298,7 @@ async function startServer() {
       });
 
       // 4. Process data and return to frontend
-      res.json({
+      const responseData = {
         configured: true,
         message: `Connected to Jira (Board: ${cleanBoardId} for ${team})`,
         rawData: activeSprintData,
@@ -315,7 +315,9 @@ async function startServer() {
           { day: 'Day 2', ideal: 90, actual: 92 },
           { day: 'Day 3', ideal: 80, actual: 78 },
         ]
-      });
+      };
+      jiraCache.set(team, { data: responseData, ts: Date.now() });
+      res.json(responseData);
     } catch (error: any) {
       console.error("Jira API Error:", error);
       res.status(500).json({ error: error.message || "Failed to fetch data from Jira." });
