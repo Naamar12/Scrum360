@@ -334,20 +334,20 @@ function BacklogImportPopup({
       onMouseDown={e => e.stopPropagation()}
       onClick={e => e.stopPropagation()}
       style={pos ? { position: 'fixed', top: pos.top, left: pos.left } : { position: 'fixed', visibility: 'hidden' }}
-      className="z-[9999] bg-[#2c2c2c] border border-[#404040] rounded-xl shadow-2xl p-2 w-72 max-h-80 flex flex-col gap-1.5"
+      className="z-[9999] bg-white border border-slate-200 rounded-xl shadow-[0_8px_32px_-4px_rgba(0,0,0,0.18),0_2px_8px_-2px_rgba(0,0,0,0.10)] p-2 w-72 max-h-80 flex flex-col gap-1.5"
     >
-      <div className="flex items-center justify-between px-1">
+      <div className="flex items-center justify-between px-1 pb-0.5">
         <div className="flex items-center gap-2">
           {allBacklogIssues && allBacklogIssues.length > backlogIssues.length && (
             <button
               onClick={() => setShowAll(v => !v)}
-              className={`text-xs font-medium transition-colors ${showAll ? 'text-[#5b9bd5]' : 'text-[#aaa] hover:text-white'}`}
+              className={`text-xs font-medium transition-colors ${showAll ? 'text-violet-500' : 'text-slate-400 hover:text-slate-600'}`}
             >
               הצג הכל
             </button>
           )}
         </div>
-        <button onClick={onClose} className="text-[#aaa] hover:text-white transition-colors">
+        <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -359,10 +359,10 @@ function BacklogImportPopup({
           onChange={e => setQuery(e.target.value)}
           placeholder="חיפוש..."
           dir="rtl"
-          className="w-full bg-[#1a1a1a] border border-[#606060] rounded-lg px-2 py-1.5 text-sm text-[#e0e0e0] placeholder-[#888] focus:outline-none focus:border-[#5b9bd5] focus:ring-1 focus:ring-[#5b9bd5]/30 transition-colors"
+          className="w-full bg-slate-100 border border-transparent rounded-lg px-2 py-1.5 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:border-violet-300 focus:ring-1 focus:ring-violet-200 transition-colors"
         />
         {query && (
-          <button onClick={() => setQuery('')} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#aaa] hover:text-white transition-colors">
+          <button onClick={() => setQuery('')} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
             <X className="w-3 h-3" />
           </button>
         )}
@@ -372,7 +372,7 @@ function BacklogImportPopup({
           <button
             key={f.key}
             onClick={() => setTypeFilter(f.key)}
-            className={`text-[9px] px-2 py-0.5 rounded-full transition-colors ${typeFilter === f.key ? 'bg-[#383838] text-[#ccc]' : 'text-[#555] hover:text-[#888]'}`}
+            className={`text-[9px] px-2 py-0.5 rounded-full font-medium transition-colors ${typeFilter === f.key ? 'bg-violet-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700'}`}
           >
             {f.label}
           </button>
@@ -380,7 +380,7 @@ function BacklogImportPopup({
       </div>
 
       {available.length === 0 ? (
-        <p className="text-xs text-[#555] px-1 py-2 text-center">אין פריטים</p>
+        <p className="text-xs text-slate-400 px-1 py-2 text-center">אין פריטים</p>
       ) : (
         <div className="overflow-y-auto flex flex-col gap-0.5">
           {available.map((issue, idx) => {
@@ -394,21 +394,21 @@ function BacklogImportPopup({
             const inOtherCard = otherHolders.length > 0;
             return (
               <React.Fragment key={issue.id}>
-                {showDivider && <hr className="border-[#383838] my-1 mx-1" />}
+                {showDivider && <hr className="border-slate-200 my-1 mx-1" />}
                 <button
                   onClick={() => !added && onAdd(issue)}
                   disabled={added}
                   dir="rtl"
-                  className={`flex items-center gap-2 px-2 py-2 rounded-lg text-xs transition-colors group ${added ? 'text-[#666] cursor-default' : 'hover:bg-[#383838] text-[#ccc] cursor-pointer'}`}
+                  className={`flex items-center gap-2 px-2 py-2 rounded-lg text-xs transition-colors group ${added ? 'text-slate-400 cursor-default' : 'hover:bg-slate-50 text-slate-700 cursor-pointer'}`}
                   title={issue.summary}
                 >
                 {added
-                  ? <CheckSquare className="w-3 h-3 text-[#4a9d5a] shrink-0" />
-                  : <Plus className="w-3 h-3 text-[#555] group-hover:text-[#888] shrink-0" />
+                  ? <CheckSquare className="w-3 h-3 text-emerald-500 shrink-0" />
+                  : <Plus className="w-3 h-3 text-slate-400 group-hover:text-slate-600 shrink-0" />
                 }
-                <span className={`flex-1 truncate ${added ? 'line-through' : ''}`}>{issue.summary}</span>
+                <span className={`flex-1 truncate ${added ? 'line-through text-slate-400' : ''}`}>{issue.summary}</span>
                 {showAll && issue.assignee && issue.assignee !== 'Unassigned' && !added && (
-                  <span className="text-[9px] text-[#666] shrink-0 max-w-[40px] truncate">{issue.assignee.split(' ')[0]}</span>
+                  <span className="text-[9px] text-slate-400 shrink-0 max-w-[40px] truncate">{issue.assignee.split(' ')[0]}</span>
                 )}
                 {inOtherCard && (
                   <Link2
@@ -423,7 +423,7 @@ function BacklogImportPopup({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={e => e.stopPropagation()}
-                    className="text-[#555] hover:text-[#5b9bd5] transition-colors shrink-0 opacity-0 group-hover:opacity-100"
+                    className="text-slate-400 hover:text-violet-500 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
                     title="פתח בג'ירה"
                   >
                     <ExternalLink className="w-3 h-3" />

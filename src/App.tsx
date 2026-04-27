@@ -6,7 +6,7 @@ import {
 import {
   Shield, AlertTriangle, CheckCircle2, Clock, MessageSquare,
   Activity, Server, Calendar, Users, Bug, LayoutDashboard, Loader2, Layers, X, Sparkles,
-  Search, HelpCircle, Bell
+  Search, HelpCircle, Bell, Settings
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -117,7 +117,8 @@ function FilterImageDropdown({ value, onChange }: { value: string; onChange: (v:
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'master' | 'briefing'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'briefing'>('dashboard');
+  const [isMasterPromptOpen, setIsMasterPromptOpen] = useState(false);
   const [filter, setFilter] = useState('v1');
   const [burndownData, setBurndownData] = useState(defaultBurndownData);
   const [issues, setIssues] = useState<JiraIssue[]>([]);
@@ -266,15 +267,6 @@ export default function App() {
                 Dashboard
               </button>
               <button
-                onClick={() => setActiveTab('master')}
-                className={cn(
-                  "px-4 flex items-center text-sm font-medium border-b-2 transition-colors",
-                  activeTab === 'master' ? "border-violet-500 text-slate-900" : "border-transparent text-slate-400 hover:text-slate-600"
-                )}
-              >
-                Master Prompt
-              </button>
-              <button
                 onClick={() => setActiveTab('briefing')}
                 className={cn(
                   "px-4 flex items-center text-sm font-medium border-b-2 transition-colors",
@@ -288,6 +280,13 @@ export default function App() {
 
           <div className="flex items-center gap-3 self-center">
             <FilterImageDropdown value={filter} onChange={setFilter} />
+            <button
+              onClick={() => setIsMasterPromptOpen(true)}
+              className="w-[34px] h-[34px] flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+              title="Master Prompt"
+            >
+              <Settings className="w-[18px] h-[18px]" />
+            </button>
             <div className="w-[34px] h-[34px] rounded-full flex items-center justify-center text-white text-xs font-semibold cursor-pointer" style={{ background: 'linear-gradient(135deg, #6b4cf5, #1fb893)' }} title="Profile">
               NR
             </div>
@@ -508,13 +507,38 @@ export default function App() {
 
 
           </>
-        ) : activeTab === 'briefing' ? (
-          <SprintBriefingWidget key={filter} issues={issues} activeSprintName={activeSprintName} filter={filter} />
         ) : (
-          <MasterPrompt />
+          <SprintBriefingWidget key={filter} issues={issues} activeSprintName={activeSprintName} filter={filter} />
         )}
 
       </main>
+
+      {/* MASTER PROMPT DRAWER */}
+      {isMasterPromptOpen && (
+        <div className="fixed inset-0 z-50 flex" onClick={() => setIsMasterPromptOpen(false)}>
+          <div className="flex-1" />
+          <div
+            className="w-full max-w-xl bg-white h-full shadow-xl flex flex-col overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <div className="flex items-center gap-2 text-slate-700">
+                <Settings className="w-4 h-4 text-violet-500" />
+                <span className="text-sm font-semibold">Master Prompt</span>
+              </div>
+              <button
+                onClick={() => setIsMasterPromptOpen(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <MasterPrompt />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* RELEASE CUBES MODAL */}
       {isReleaseModalOpen && (
