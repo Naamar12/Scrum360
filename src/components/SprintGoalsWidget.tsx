@@ -61,22 +61,21 @@ interface SprintGoalsWidgetProps {
   jiraBoardUrl?: string;
 }
 
-const TEAM_LOGOS: Record<string, { src: string; cls: string }> = {
-  'v1':   { src: '/small_v1_logo.png',   cls: 'h-7 w-auto object-contain' },
-  'mako': { src: '/small_mako_logo.png',  cls: 'h-7 w-auto object-contain' },
-  'N12':  { src: '/small_n12_logo.png',   cls: 'h-7 w-auto object-contain' },
-  '12+':  { src: '/small_12+_logo.png',   cls: 'h-[22px] w-auto object-contain' },
+const TEAM_LOGOS: Record<string, { src: string; cls: string; display: string }> = {
+  'v1':   { src: '/small_v1_logo.png',   cls: 'h-7 w-auto object-contain',      display: 'V1'   },
+  'mako': { src: '/small_mako_logo.png',  cls: 'h-7 w-auto object-contain',      display: 'Mako' },
+  'N12':  { src: '/small_n12_logo.png',   cls: 'h-7 w-auto object-contain',      display: 'N12'  },
+  '12+':  { src: '/small_12+_logo.png',   cls: 'h-[22px] w-auto object-contain', display: '12+'  },
 };
 
-function formatSprintName(name: string): string {
-  // Flexibly parse any Jira sprint name into " | "-separated parts with zero-padded dates.
-  // Works regardless of team, quarter format (Q2-26 / Q2-2026), or missing sections.
+type SprintNamePart = { text: string; emphasis: 'primary' | 'secondary' };
+
+function getSprintNameParts(name: string): SprintNamePart[] {
   const pad = (d: string) => {
     const [day, month] = d.split('.');
     return `${day.padStart(2, '0')}.${month.padStart(2, '0')}`;
   };
 
-  // Split off optional team prefix before " - "
   let prefix = '';
   let rest = name;
   const prefixMatch = name.match(/^(.+?)\s+-\s+(.+)$/);
@@ -89,22 +88,39 @@ function formatSprintName(name: string): string {
   const sprintMatch  = rest.match(/\b(SP\d+)\b/i);
   const dateMatch    = rest.match(/\b(\d{1,2}\.\d{1,2})\s*[-–]\s*(\d{1,2}\.\d{1,2})\b/);
 
-  // Nothing we recognise beyond a prefix → return as-is
-  if (!quarterMatch && !sprintMatch && !dateMatch) return name;
+  if (!quarterMatch && !sprintMatch && !dateMatch) {
+    return [{ text: name, emphasis: 'primary' }];
+  }
 
-  const parts: string[] = [];
-  if (prefix)      parts.push(prefix);
-  if (quarterMatch) parts.push(quarterMatch[1].toUpperCase());
-  if (sprintMatch)  parts.push(sprintMatch[1].toUpperCase());
-  if (dateMatch)    parts.push(`${pad(dateMatch[1])} - ${pad(dateMatch[2])}`);
+  const parts: SprintNamePart[] = [];
+  if (prefix)       parts.push({ text: prefix,                                          emphasis: 'primary' });
+  if (quarterMatch) parts.push({ text: quarterMatch[1].toUpperCase(),                   emphasis: 'secondary' });
+  if (sprintMatch)  parts.push({ text: sprintMatch[1].toUpperCase(),                    emphasis: 'primary' });
+  if (dateMatch)    parts.push({ text: `${pad(dateMatch[1])} - ${pad(dateMatch[2])}`,   emphasis: 'secondary' });
 
-  return parts.join(' | ');
+  return parts;
 }
 
 export default function SprintGoalsWidget({ goalText = '', issues = [], sprintGoalIssues = {}, activeSprintName, team, jiraBoardUrl }: SprintGoalsWidgetProps) {
   const goals = useMemo(() => parseSprintGoals(goalText), [goalText]);
   const sprintLogoEntry = team ? TEAM_LOGOS[team] : undefined;
-  const displaySprintName = activeSprintName ? formatSprintName(activeSprintName) : undefined;
+  const sprintNameParts = useMemo(() => {
+    if (!activeSprintName) return undefined;
+    const teamEntry = team ? TEAM_LOGOS[team] : undefined;
+    const teamDisplay = teamEntry?.display ?? team;
+    const parts = getSprintNameParts(activeSprintName);
+    // Normalise any prefix that matches this team to the canonical display name
+    parts.forEach(p => {
+      if (p.emphasis === 'primary' && p.text.toLowerCase() === team?.toLowerCase()) {
+        p.text = teamDisplay ?? p.text;
+      }
+    });
+    const hasTeamInName = parts.some(p => p.emphasis === 'primary' && p.text === teamDisplay);
+    if (teamDisplay && !hasTeamInName) {
+      parts.unshift({ text: teamDisplay, emphasis: 'primary' });
+    }
+    return parts;
+  }, [activeSprintName, team]);
 
   const goalsWithProgress = useMemo(() => {
     return goals.map(goal => {
@@ -162,17 +178,24 @@ export default function SprintGoalsWidget({ goalText = '', issues = [], sprintGo
       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
         <div className="flex items-start justify-between mb-4">
           <div>
-            {displaySprintName && (
+            {sprintNameParts && (
               <div className="flex items-center gap-2 mb-1">
                 {sprintLogoEntry && (
-                  <img src={sprintLogoEntry.src} alt="" className={sprintLogoEntry.cls} />
+                  <img src={sprintLogoEntry.src} alt="" className={`${sprintLogoEntry.cls} self-center`} />
                 )}
-                <h2 className="text-2xl font-bold text-slate-900">
-                  {displaySprintName}
+                <h2 className="text-2xl flex items-center leading-none">
+                  {sprintNameParts.map((part, i) => (
+                    <React.Fragment key={i}>
+                      {i > 0 && <span className="text-slate-300 mx-1.5 font-normal select-none">|</span>}
+                      <span className={part.emphasis === 'primary' ? 'font-bold text-slate-900' : 'font-semibold text-[#5A5A5A]'}>
+                        {part.text}
+                      </span>
+                    </React.Fragment>
+                  ))}
                 </h2>
               </div>
             )}
-            <h3 className="text-base font-semibold text-slate-700">Sprint Strategic Goals</h3>
+            <h3 className="text-base font-semibold text-[#5A5A5A]">Sprint Strategic Goals</h3>
             <p className="text-sm text-slate-500">Progress tracked via Epics & Issues</p>
           </div>
         </div>
@@ -181,10 +204,10 @@ export default function SprintGoalsWidget({ goalText = '', issues = [], sprintGo
           <div className="text-sm text-slate-500 space-y-1">
             <p>To track progress, add your goals in Jira:</p>
             <ol className="list-decimal list-inside space-y-1 mt-1">
-              <li>Click <span className="font-medium text-slate-600">•••</span> &gt; <span className="font-medium text-slate-600">Edit sprint</span></li>
+              <li>Click <span className="font-medium text-slate-900">•••</span> &gt; <span className="font-medium text-slate-900">Edit sprint</span></li>
               <li>
-                Add goals to the <span className="font-medium text-slate-600">Sprint goal</span> field using the format:{' '}
-                <code className="text-xs bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded font-mono border border-slate-300">Goal Name (KESHET-123)</code>
+                Add goals to the <span className="font-medium text-slate-900">Sprint goal</span> field using the format:{' '}
+                <code className="text-xs bg-slate-100 text-slate-800 px-2.5 py-1 rounded font-mono border border-slate-300" style={{ fontFamily: "'Consolas', 'Roboto Mono', monospace" }}>Goal Name (KESHET-123)</code>
               </li>
             </ol>
           </div>
@@ -193,7 +216,7 @@ export default function SprintGoalsWidget({ goalText = '', issues = [], sprintGo
               href={jiraBoardUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-1 inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors self-start"
+              className="mt-3 inline-flex items-center gap-1.5 px-5 py-1.5 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors self-start"
             >
               Go to Jira
               <ExternalLink className="w-3.5 h-3.5" />
@@ -208,17 +231,24 @@ export default function SprintGoalsWidget({ goalText = '', issues = [], sprintGo
     <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
       <div className="flex items-start justify-between mb-6">
         <div>
-          {displaySprintName && (
+          {sprintNameParts && (
             <div className="flex items-center gap-2 mb-1">
               {sprintLogoEntry && (
-                <img src={sprintLogoEntry.src} alt="" className={sprintLogoEntry.cls} />
+                <img src={sprintLogoEntry.src} alt="" className={`${sprintLogoEntry.cls} self-center`} />
               )}
-              <h2 className="text-2xl font-bold text-slate-900">
-                {displaySprintName}
+              <h2 className="text-2xl flex items-center leading-none">
+                {sprintNameParts.map((part, i) => (
+                  <React.Fragment key={i}>
+                    {i > 0 && <span className="text-slate-300 mx-1.5 font-normal select-none">|</span>}
+                    <span className={part.emphasis === 'primary' ? 'font-bold text-slate-900' : 'font-semibold text-[#5A5A5A]'}>
+                      {part.text}
+                    </span>
+                  </React.Fragment>
+                ))}
               </h2>
             </div>
           )}
-          <h3 className="text-base font-semibold text-slate-700">Sprint Strategic Goals</h3>
+          <h3 className="text-base font-semibold text-[#5A5A5A]">Sprint Strategic Goals</h3>
           <p className="text-sm text-slate-500">Progress tracked via Epics & Issues</p>
         </div>
       </div>
