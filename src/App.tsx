@@ -57,6 +57,54 @@ const slackMentions = [
   { time: 'Yesterday', user: 'Mike (iOS)', msg: 'Blocker: Need the updated design assets for the onboarding screen.', channel: '#design-sync' },
 ];
 
+const FILTER_OPTIONS = [
+  { value: 'v1',   logo: '/small_v1_logo.png' },
+  { value: 'mako', logo: '/small_mako_logo.png' },
+  { value: 'N12',  logo: '/small_n12_logo.png' },
+  { value: '12+',  logo: '/small_12+_logo.png' },
+];
+
+function FilterImageDropdown({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+  const selected = FILTER_OPTIONS.find(o => o.value === value) ?? FILTER_OPTIONS[0];
+
+  React.useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg py-1.5 px-3 focus:ring-2 focus:ring-violet-500 focus:border-violet-400 cursor-pointer"
+      >
+        <img src={selected.logo} alt={selected.value} className="h-7 object-contain" />
+        <svg className="w-4 h-4 text-slate-400 ml-1" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-1 min-w-[80px]">
+          {FILTER_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+              className={`flex items-center justify-center w-full px-4 py-3 hover:bg-slate-50 ${opt.value === value ? 'bg-violet-50' : ''}`}
+            >
+              <img src={opt.logo} alt={opt.value} className="h-7 object-contain" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'master' | 'briefing'>('dashboard');
   const [filter, setFilter] = useState('v1');
@@ -223,20 +271,10 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-3">
-            <label htmlFor="global-filter" className="text-sm text-slate-500 ml-1">
-              Global Filter:
+            <label className="text-sm text-slate-500 ml-1">
+              Team:
             </label>
-            <select
-              id="global-filter"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="bg-white border border-slate-200 text-sm font-medium rounded-lg py-1.5 pl-3 pr-8 focus:ring-2 focus:ring-violet-500 focus:border-violet-400 cursor-pointer"
-            >
-              <option value="v1">v1</option>
-              <option value="mako">mako</option>
-              <option value="N12">N12</option>
-              <option value="12+">12+</option>
-            </select>
+            <FilterImageDropdown value={filter} onChange={setFilter} />
             <div className="w-[34px] h-[34px] rounded-full flex items-center justify-center text-white text-xs font-semibold cursor-pointer" style={{ background: 'linear-gradient(135deg, #6b4cf5, #1fb893)' }} title="Profile">
               NR
             </div>
