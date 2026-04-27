@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ClipboardList, Plus, GripVertical, Send, X, Bookmark, CheckSquare, Bug, Loader2, LayoutGrid, List as ListIcon, Archive, ChevronDown, ChevronUp, ExternalLink, Palette, Maximize2, Link2 } from 'lucide-react';
+import { ClipboardList, Plus, GripVertical, Send, X, Bookmark, CheckSquare, Bug, Loader2, LayoutGrid, List as ListIcon, Archive, ChevronDown, ChevronUp, ExternalLink, Palette, Maximize2, Link2, Search } from 'lucide-react';
 import { JiraIssue } from './ItemDistributionWidget';
 
 interface Props {
@@ -1165,7 +1165,32 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
   const [extraCards, setExtraCards] = useState<string[]>(stored.extraCards);
   const [hiddenDevs, setHiddenDevs] = useState<Set<string>>(new Set(stored.hiddenDevs));
   const [cardOrder, setCardOrder] = useState<string[]>(stored.cardOrder ?? []);
+
+  // Auto-populate cards whenever Jira issues load or the filter changes.
+  // The useState initializer above runs before the async Jira fetch completes,
+  // so issuesByDev is always empty at mount time — this effect catches the update.
+  useEffect(() => {
+    if (Object.keys(issuesByDev).length === 0) return;
+    setCardData(prev => {
+      const updated = { ...prev };
+      let changed = false;
+      for (const dev of Object.keys(issuesByDev)) {
+        if (!updated[dev] || !updated[dev].items?.some(i => i.text.trim())) {
+          const devIssues = issuesByDev[dev] ?? [];
+          updated[dev] = {
+            title: updated[dev]?.title ?? dev,
+            items: devIssues.filter(i => issueCategory(i.type) !== null).map(i => makeItem(i.summary, i.type)),
+            generatedContent: updated[dev]?.generatedContent,
+            bgColor: updated[dev]?.bgColor,
+          };
+          changed = true;
+        }
+      }
+      return changed ? updated : prev;
+    });
+  }, [issuesByDev]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [searchQuery, setSearchQuery] = useState('');
   const [archiveModalOpen, setArchiveModalOpen] = useState(false);
   const [boardKey, setBoardKey] = useState(0);
   const cardDragSrc = useRef<string | null>(null);
@@ -1349,6 +1374,17 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
 
   const readyCount = allCards.filter(({ cardKey }) => cardStatus(cardData[cardKey]) === 'ready').length;
 
+  const filteredCards = useMemo(() => {
+    if (!searchQuery.trim()) return allCards;
+    const q = searchQuery.trim().toLowerCase();
+    return allCards.filter(({ cardKey }) => {
+      const card = cardData[cardKey];
+      const title = (card?.title ?? cardKey).toLowerCase();
+      if (title.includes(q)) return true;
+      return card?.items?.some(i => i.text.toLowerCase().includes(q));
+    });
+  }, [allCards, cardData, searchQuery]);
+
   return (
     <div className="space-y-4">
       {/* Archive confirmation modal */}
@@ -1421,6 +1457,24 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
           )}
         </div>
 
+        {/* Search */}
+        <div className="relative flex items-center">
+          <Search className="absolute right-2.5 w-3.5 h-3.5 text-[#888] pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="הקלד טקסט כאן"
+            dir="rtl"
+            className="bg-slate-100 border border-slate-200 rounded-full pr-8 pl-7 py-1 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-300/40 transition-colors w-44"
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="absolute left-2.5 text-slate-400 hover:text-slate-600 transition-colors">
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+
         {/* Right side controls */}
         <div className="flex items-center gap-2">
           {/* Archive / New sprint */}
@@ -1454,7 +1508,7 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
       </div>
 
       <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-3 md:grid-cols-3' : 'flex flex-col gap-1.5'}>
-        {allCards.map(({ cardKey, isExtra }) => {
+        {filteredCards.map(({ cardKey, isExtra }) => {
           const card = cardData[cardKey] as StoredCard | undefined;
           const isOver = cardOverKey === cardKey && cardDragSrc.current !== cardKey;
           return (
@@ -1493,15 +1547,24 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
           );
         })}
 
-        <button
-          onClick={addCard}
-          className={`bg-[#252525] border border-dashed border-[#404040] rounded-2xl flex flex-col items-center justify-center gap-2 hover:border-[#666] transition-colors group ${
-            viewMode === 'grid' ? 'p-4 min-h-[120px]' : 'p-3 rounded-xl min-h-[44px] flex-row'
-          }`}
-        >
-          <Plus className={`text-[#555] group-hover:text-[#888] ${viewMode === 'grid' ? 'w-5 h-5' : 'w-4 h-4'}`} />
-          <span className="text-xs text-[#555] group-hover:text-[#888]">חדש</span>
-        </button>
+        {searchQuery ? (
+          filteredCards.length === 0 && (
+            <div className="col-span-full flex flex-col items-center justify-center py-10 text-[#666] gap-2">
+              <Search className="w-5 h-5 opacity-40" />
+              <span className="text-sm">לא נמצאו קוביות עבור &ldquo;{searchQuery}&rdquo;</span>
+            </div>
+          )
+        ) : (
+          <button
+            onClick={addCard}
+            className={`bg-[#252525] border border-dashed border-[#404040] rounded-2xl flex flex-col items-center justify-center gap-2 hover:border-[#666] transition-colors group ${
+              viewMode === 'grid' ? 'p-4 min-h-[120px]' : 'p-3 rounded-xl min-h-[44px] flex-row'
+            }`}
+          >
+            <Plus className={`text-[#555] group-hover:text-[#888] ${viewMode === 'grid' ? 'w-5 h-5' : 'w-4 h-4'}`} />
+            <span className="text-xs text-[#555] group-hover:text-[#888]">חדש</span>
+          </button>
+        )}
       </div>
 
       {pendingDelete && createPortal(
