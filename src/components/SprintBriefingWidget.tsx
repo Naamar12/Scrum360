@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ClipboardList, Plus, GripVertical, Send, X, Bookmark, CheckSquare, Bug, Loader2, LayoutGrid, List as ListIcon, Archive, ChevronDown, ChevronUp, ExternalLink, Palette, Maximize2 } from 'lucide-react';
+import { ClipboardList, Plus, GripVertical, Send, X, Bookmark, CheckSquare, Bug, Loader2, LayoutGrid, List as ListIcon, Archive, ChevronDown, ChevronUp, ExternalLink, Palette, Maximize2, Link2 } from 'lucide-react';
 import { JiraIssue } from './ItemDistributionWidget';
 
 interface Props {
@@ -265,6 +265,8 @@ function BacklogImportPopup({
   onAdd,
   onClose,
   triggerRef,
+  allCardsItemNames,
+  currentCardTitle,
 }: {
   backlogIssues: JiraIssue[];
   allBacklogIssues?: JiraIssue[];
@@ -272,6 +274,8 @@ function BacklogImportPopup({
   onAdd: (issue: JiraIssue) => void;
   onClose: () => void;
   triggerRef: React.RefObject<HTMLButtonElement>;
+  allCardsItemNames?: Map<string, string[]>;
+  currentCardTitle?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -313,11 +317,14 @@ function BacklogImportPopup({
   const currentTexts = new Set(currentItems.map(i => i.text.trim()));
   const typeOrder: Record<string, number> = { story: 0, bug: 1, task: 2 };
   const sourceIssues = showAll && allBacklogIssues ? allBacklogIssues : backlogIssues;
-  const available = sourceIssues
+  const filtered = sourceIssues
     .filter(i => !['done', 'closed', 'resolved'].includes(i.status?.toLowerCase() ?? ''))
     .filter(i => typeFilter === 'all' || issueCategory(i.type) === typeFilter)
-    .filter(i => !query || i.summary.toLowerCase().includes(query.toLowerCase()) || (showAll && i.assignee?.toLowerCase().includes(query.toLowerCase())))
-    .sort((a, b) => (typeOrder[issueCategory(a.type) ?? 'task'] ?? 2) - (typeOrder[issueCategory(b.type) ?? 'task'] ?? 2));
+    .filter(i => !query || i.summary.toLowerCase().includes(query.toLowerCase()) || (showAll && i.assignee?.toLowerCase().includes(query.toLowerCase())));
+  const available = [
+    ...filtered.filter(i => !currentTexts.has(i.summary.trim())).sort((a, b) => (typeOrder[issueCategory(a.type) ?? 'task'] ?? 2) - (typeOrder[issueCategory(b.type) ?? 'task'] ?? 2)),
+    ...filtered.filter(i => currentTexts.has(i.summary.trim())).sort((a, b) => (typeOrder[issueCategory(a.type) ?? 'task'] ?? 2) - (typeOrder[issueCategory(b.type) ?? 'task'] ?? 2)),
+  ];
 
   return createPortal(
     <div
@@ -328,20 +335,19 @@ function BacklogImportPopup({
       className="z-[9999] bg-[#2c2c2c] border border-[#404040] rounded-xl shadow-2xl p-2 w-72 max-h-80 flex flex-col gap-1.5"
     >
       <div className="flex items-center justify-between px-1">
-        <span className="text-[10px] text-[#888] uppercase tracking-wide">Backlog</span>
         <div className="flex items-center gap-2">
           {allBacklogIssues && allBacklogIssues.length > backlogIssues.length && (
             <button
               onClick={() => setShowAll(v => !v)}
-              className={`text-[10px] transition-colors ${showAll ? 'text-[#5b9bd5]' : 'text-[#555] hover:text-[#888]'}`}
+              className={`text-xs font-medium transition-colors ${showAll ? 'text-[#5b9bd5]' : 'text-[#aaa] hover:text-white'}`}
             >
               הצג הכל
             </button>
           )}
-          <button onClick={onClose} className="text-[#555] hover:text-[#888] transition-colors">
-            <X className="w-3 h-3" />
-          </button>
         </div>
+        <button onClick={onClose} className="text-[#555] hover:text-[#888] transition-colors">
+          <X className="w-3 h-3" />
+        </button>
       </div>
       <div className="relative px-1">
         <input
@@ -351,7 +357,7 @@ function BacklogImportPopup({
           onChange={e => setQuery(e.target.value)}
           placeholder="חיפוש..."
           dir="rtl"
-          className="w-full bg-[#1e1e1e] border border-[#404040] rounded-lg px-2 py-1 text-xs text-[#ccc] placeholder-[#555] focus:outline-none focus:border-[#5b9bd5] transition-colors"
+          className="w-full bg-[#1a1a1a] border border-[#505050] rounded-lg px-2 py-1.5 text-sm text-[#e0e0e0] placeholder-[#555] focus:outline-none focus:border-[#5b9bd5] focus:ring-1 focus:ring-[#5b9bd5]/30 transition-colors"
         />
         {query && (
           <button onClick={() => setQuery('')} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#555] hover:text-[#888]">
@@ -375,23 +381,31 @@ function BacklogImportPopup({
         <p className="text-xs text-[#555] px-1 py-2 text-center">אין פריטים</p>
       ) : (
         <div className="overflow-y-auto flex flex-col gap-0.5">
-          {available.map(issue => {
+          {available.map((issue, idx) => {
             const added = currentTexts.has(issue.summary.trim());
+            const prevAdded = idx > 0 && currentTexts.has(available[idx - 1].summary.trim());
+            const showDivider = added && !prevAdded && idx > 0;
+            const otherHolders = added ? [] : (
+              allCardsItemNames?.get(issue.summary.trim().toLowerCase())
+                ?.filter(t => t !== currentCardTitle) ?? []
+            );
+            const inOtherCard = otherHolders.length > 0;
             return (
-              <button
-                key={issue.id}
-                onClick={() => !added && onAdd(issue)}
-                disabled={added}
-                className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-right transition-colors group ${added ? 'text-[#555] cursor-default' : 'hover:bg-[#383838] text-[#ccc] cursor-pointer'}`}
-                title={issue.summary}
-              >
+              <React.Fragment key={issue.id}>
+                {showDivider && <hr className="border-[#383838] my-1 mx-1" />}
+                <button
+                  onClick={() => !added && onAdd(issue)}
+                  disabled={added}
+                  className={`flex items-center gap-2 px-2 py-2 rounded-lg text-xs text-right transition-colors group ${added ? 'text-[#666] cursor-default' : 'hover:bg-[#383838] text-[#ccc] cursor-pointer'}`}
+                  title={issue.summary}
+                >
                 {issue.url && (
                   <a
                     href={issue.url}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={e => e.stopPropagation()}
-                    className="text-[#555] hover:text-[#5b9bd5] transition-colors shrink-0"
+                    className="text-[#555] hover:text-[#5b9bd5] transition-colors shrink-0 opacity-0 group-hover:opacity-100"
                     title="פתח בג'ירה"
                   >
                     <ExternalLink className="w-3 h-3" />
@@ -399,6 +413,12 @@ function BacklogImportPopup({
                 )}
                 <IssueTypeIcon type={issue.type} />
                 <span dir="rtl" className={`flex-1 text-right truncate ${added ? 'line-through' : ''}`}>{issue.summary}</span>
+                {inOtherCard && (
+                  <Link2
+                    className="w-3 h-3 text-amber-400 shrink-0"
+                    title={`כבר אצל: ${otherHolders.join(', ')}`}
+                  />
+                )}
                 {showAll && issue.assignee && issue.assignee !== 'Unassigned' && !added && (
                   <span className="text-[9px] text-[#666] shrink-0 max-w-[40px] truncate">{issue.assignee.split(' ')[0]}</span>
                 )}
@@ -406,7 +426,8 @@ function BacklogImportPopup({
                   ? <CheckSquare className="w-3 h-3 text-[#4a9d5a] shrink-0" />
                   : <Plus className="w-3 h-3 text-[#555] group-hover:text-[#888] shrink-0" />
                 }
-              </button>
+                </button>
+              </React.Fragment>
             );
           })}
         </div>
@@ -419,6 +440,7 @@ function BacklogImportPopup({
 function DraggableCard({
   devKey, initialTitle, initialItems, isReady, onTitleChange, onItemsChange, onDelete, onToggleReady, onSendToSlack,
   onCardGripMouseDown, onCardGripMouseUp, compact, backlogIssues, allBacklogIssues, initialBgColor, onBgColorChange,
+  sharedItemTexts, allCardsItemNames, summaryToUrl,
 }: React.Attributes & {
   devKey: string;
   initialTitle: string;
@@ -436,6 +458,9 @@ function DraggableCard({
   allBacklogIssues?: JiraIssue[];
   initialBgColor?: string;
   onBgColorChange: (color: string) => void;
+  sharedItemTexts?: Set<string>;
+  allCardsItemNames?: Map<string, string[]>;
+  summaryToUrl?: Map<string, string>;
 }) {
   const [title, setTitle] = useState(initialTitle);
   const [items, setItems] = useState<CardItem[]>(initialItems.length ? initialItems : [makeItem()]);
@@ -587,6 +612,23 @@ function DraggableCard({
             >
               <X className={large ? 'w-4 h-4' : 'w-3 h-3'} />
             </button>
+            {(() => {
+              const url = item.text.trim() ? summaryToUrl?.get(item.text.trim()) : undefined;
+              if (!url) return null;
+              return (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  tabIndex={-1}
+                  onClick={e => e.stopPropagation()}
+                  className={`shrink-0 opacity-0 transition-opacity text-[#555] hover:text-[#5b9bd5] ${item.text.trim() ? 'group-hover/item:opacity-100' : 'pointer-events-none'}`}
+                  title="פתח בג'ירה"
+                >
+                  <ExternalLink className={large ? 'w-4 h-4' : 'w-3 h-3'} />
+                </a>
+              );
+            })()}
             <input
               value={item.text}
               onChange={e => updateItem(item.id, e.target.value)}
@@ -596,6 +638,23 @@ function DraggableCard({
               draggable={false}
               className={`item-input flex-1 bg-transparent text-[#d4d4d4] focus:outline-none placeholder:text-[#444] min-w-0 ${large ? 'text-base py-0.5' : 'text-sm'}`}
             />
+            {(() => {
+              const holders = item.text.trim()
+                ? (allCardsItemNames?.get(item.text.trim().toLowerCase()) ?? []).filter(t => t !== title)
+                : [];
+              if (!holders.length) return null;
+              const label = holders.length <= 2
+                ? holders.map(h => h.split(' ')[0]).join(', ')
+                : `${holders[0].split(' ')[0]} +${holders.length - 1}`;
+              return (
+                <span
+                  className="shrink-0 text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 leading-none"
+                  title={`כבר אצל: ${holders.join(', ')}`}
+                >
+                  {label}
+                </span>
+              );
+            })()}
             <TypePicker current={item.issueType} onChange={t => updateItemType(item.id, t)} isEmpty={item.text.trim() === ''} />
             <GripVertical
               className={`text-[#444] shrink-0 opacity-0 transition-opacity ${item.text.trim() !== '' ? 'cursor-grab active:cursor-grabbing group-hover/item:opacity-100' : 'pointer-events-none'} ${large ? 'w-4 h-4' : 'w-3.5 h-3.5'}`}
@@ -713,6 +772,8 @@ function DraggableCard({
                     }}
                     onClose={() => setBacklogOpen(false)}
                     triggerRef={backlogTriggerRef}
+                    allCardsItemNames={allCardsItemNames}
+                    currentCardTitle={title}
                   />
                 )}
               </div>
@@ -1224,6 +1285,33 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
     }),
   [baseCards, orderMap]);
 
+  const allCardsItemNames = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const { cardKey } of allCards) {
+      const card = cardData[cardKey];
+      const title = card?.title ?? cardKey;
+      for (const item of card?.items ?? []) {
+        const key = item.text.trim().toLowerCase();
+        if (!key) continue;
+        if (!map.has(key)) map.set(key, []);
+        map.get(key)!.push(title);
+      }
+    }
+    return map;
+  }, [allCards, cardData]);
+
+  const summaryToUrl = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const issue of issues) {
+      if (issue.url && issue.summary) map.set(issue.summary.trim(), issue.url);
+    }
+    return map;
+  }, [issues]);
+
+  const sharedItemTexts = useMemo(() => {
+    return new Set([...allCardsItemNames.entries()].filter(([, names]) => names.length >= 2).map(([k]) => k));
+  }, [allCardsItemNames]);
+
   function onCardDragStart(e: React.DragEvent, cardKey: string) {
     if (!cardFromGrip.current) { e.preventDefault(); return; }
     cardDragSrc.current = cardKey;
@@ -1396,6 +1484,9 @@ export default function SprintBriefingWidget({ issues, activeSprintName }: Props
                 compact={viewMode === 'list'}
                 backlogIssues={isExtra ? undefined : backlogIssuesByDev[cardKey]}
                 allBacklogIssues={isExtra ? undefined : allBacklogIssues}
+                sharedItemTexts={sharedItemTexts}
+                allCardsItemNames={allCardsItemNames}
+                summaryToUrl={summaryToUrl}
               />
             </div>
           );
