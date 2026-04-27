@@ -64,6 +64,13 @@ const FILTER_OPTIONS = [
   { value: '12+',  logo: '/small_12+_logo.png',   logoClass: 'h-[22px] object-contain -translate-x-0.5' },
 ];
 
+const TEAM_BOARD_URLS: Record<string, string> = {
+  'v1':   'https://mako-tech.atlassian.net/jira/software/boards/91',
+  'mako': 'https://mako-tech.atlassian.net/jira/software/boards/85',
+  'N12':  'https://mako-tech.atlassian.net/jira/software/boards/88',
+  '12+':  'https://mako-tech.atlassian.net/jira/software/boards/87',
+};
+
 function FilterImageDropdown({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
@@ -122,12 +129,8 @@ export default function App() {
   const [sprintDaysRemaining, setSprintDaysRemaining] = useState<string>("X days remaining");
   const [jiraBoardUrl, setJiraBoardUrl] = useState<string | undefined>();
   const effectiveJiraBoardUrl = useMemo(() => {
-    if (jiraBoardUrl) return jiraBoardUrl;
-    const firstUrl = issues[0]?.url || Object.values(sprintGoalIssues)[0]?.url;
-    if (!firstUrl) return undefined;
-    const match = firstUrl.match(/^(https:\/\/[^/]+)/);
-    return match ? match[1] : undefined;
-  }, [jiraBoardUrl, issues, sprintGoalIssues]);
+    return TEAM_BOARD_URLS[filter] ?? jiraBoardUrl;
+  }, [filter, jiraBoardUrl]);
   const [jiraStatus, setJiraStatus] = useState<{loading: boolean, configured: boolean, message: string}>({
     loading: true,
     configured: false,
