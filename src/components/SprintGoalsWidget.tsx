@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { CheckCircle2, Circle, ArrowRight } from 'lucide-react';
+import { CheckCircle2, Circle, ArrowRight, ExternalLink } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { JiraIssue } from './ItemDistributionWidget';
@@ -68,9 +68,43 @@ const TEAM_LOGOS: Record<string, { src: string; cls: string }> = {
   '12+':  { src: '/small_12+_logo.png',   cls: 'h-[22px] w-auto object-contain' },
 };
 
+function formatSprintName(name: string): string {
+  // Flexibly parse any Jira sprint name into " | "-separated parts with zero-padded dates.
+  // Works regardless of team, quarter format (Q2-26 / Q2-2026), or missing sections.
+  const pad = (d: string) => {
+    const [day, month] = d.split('.');
+    return `${day.padStart(2, '0')}.${month.padStart(2, '0')}`;
+  };
+
+  // Split off optional team prefix before " - "
+  let prefix = '';
+  let rest = name;
+  const prefixMatch = name.match(/^(.+?)\s+-\s+(.+)$/);
+  if (prefixMatch) {
+    prefix = prefixMatch[1];
+    rest = prefixMatch[2];
+  }
+
+  const quarterMatch = rest.match(/\b(Q\d+[-/]\d+)\b/i);
+  const sprintMatch  = rest.match(/\b(SP\d+)\b/i);
+  const dateMatch    = rest.match(/\b(\d{1,2}\.\d{1,2})\s*[-–]\s*(\d{1,2}\.\d{1,2})\b/);
+
+  // Nothing we recognise beyond a prefix → return as-is
+  if (!quarterMatch && !sprintMatch && !dateMatch) return name;
+
+  const parts: string[] = [];
+  if (prefix)      parts.push(prefix);
+  if (quarterMatch) parts.push(quarterMatch[1].toUpperCase());
+  if (sprintMatch)  parts.push(sprintMatch[1].toUpperCase());
+  if (dateMatch)    parts.push(`${pad(dateMatch[1])} - ${pad(dateMatch[2])}`);
+
+  return parts.join(' | ');
+}
+
 export default function SprintGoalsWidget({ goalText = '', issues = [], sprintGoalIssues = {}, activeSprintName, team, jiraBoardUrl }: SprintGoalsWidgetProps) {
   const goals = useMemo(() => parseSprintGoals(goalText), [goalText]);
   const sprintLogoEntry = team ? TEAM_LOGOS[team] : undefined;
+  const displaySprintName = activeSprintName ? formatSprintName(activeSprintName) : undefined;
 
   const goalsWithProgress = useMemo(() => {
     return goals.map(goal => {
@@ -126,15 +160,15 @@ export default function SprintGoalsWidget({ goalText = '', issues = [], sprintGo
   if (goals.length === 0) {
     return (
       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-        <div className="flex items-start justify-between mb-6">
+        <div className="flex items-start justify-between mb-4">
           <div>
-            {activeSprintName && (
+            {displaySprintName && (
               <div className="flex items-center gap-2 mb-1">
                 {sprintLogoEntry && (
                   <img src={sprintLogoEntry.src} alt="" className={sprintLogoEntry.cls} />
                 )}
                 <h2 className="text-2xl font-bold text-slate-900">
-                  {activeSprintName}
+                  {displaySprintName}
                 </h2>
               </div>
             )}
@@ -142,26 +176,27 @@ export default function SprintGoalsWidget({ goalText = '', issues = [], sprintGo
             <p className="text-sm text-slate-500">Progress tracked via Epics & Issues</p>
           </div>
         </div>
-        <div className="flex flex-col items-center justify-center text-center py-4 gap-3">
-          <p className="text-sm font-semibold text-slate-700">🎯 No goals set for this sprint yet</p>
-          <div className="text-sm text-slate-500 max-w-xs space-y-1 text-left">
+        <div className="flex flex-col pt-6 pb-4 gap-3">
+          <p className="text-base font-bold text-slate-900">🎯 No goals set for this sprint yet</p>
+          <div className="text-sm text-slate-500 space-y-1">
             <p>To track progress, add your goals in Jira:</p>
             <ol className="list-decimal list-inside space-y-1 mt-1">
               <li>Click <span className="font-medium text-slate-600">•••</span> &gt; <span className="font-medium text-slate-600">Edit sprint</span></li>
-              <li>Add goals to the <span className="font-medium text-slate-600">Sprint goal</span> field using the format:</li>
+              <li>
+                Add goals to the <span className="font-medium text-slate-600">Sprint goal</span> field using the format:{' '}
+                <code className="text-xs bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded font-mono border border-slate-300">Goal Name (KESHET-123)</code>
+              </li>
             </ol>
           </div>
-          <code className="text-xs bg-slate-100 text-slate-700 px-2.5 py-1 rounded font-mono border border-slate-200">
-            Goal Name (KESHET-123)
-          </code>
           {jiraBoardUrl && (
             <a
               href={jiraBoardUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-1 inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+              className="mt-1 inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors self-start"
             >
               Go to Jira
+              <ExternalLink className="w-3.5 h-3.5" />
             </a>
           )}
         </div>
@@ -173,13 +208,13 @@ export default function SprintGoalsWidget({ goalText = '', issues = [], sprintGo
     <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
       <div className="flex items-start justify-between mb-6">
         <div>
-          {activeSprintName && (
+          {displaySprintName && (
             <div className="flex items-center gap-2 mb-1">
               {sprintLogoEntry && (
                 <img src={sprintLogoEntry.src} alt="" className={sprintLogoEntry.cls} />
               )}
               <h2 className="text-2xl font-bold text-slate-900">
-                {activeSprintName}
+                {displaySprintName}
               </h2>
             </div>
           )}
