@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ClipboardList, Plus, GripVertical, Send, X, Bookmark, CheckSquare, Bug, Loader2, LayoutGrid, List as ListIcon, Archive, ChevronDown, ChevronUp, ExternalLink, Palette } from 'lucide-react';
+import { ClipboardList, Plus, GripVertical, Send, X, Bookmark, CheckSquare, Bug, Loader2, LayoutGrid, List as ListIcon, Archive, ChevronDown, ChevronUp, ExternalLink, Palette, Maximize2 } from 'lucide-react';
 import { JiraIssue } from './ItemDistributionWidget';
 
 interface Props {
@@ -85,7 +85,7 @@ function TypePicker({ current, onChange, isEmpty }: { current?: string; onChange
           {cat && (
             <button
               onClick={() => { onChange(undefined); setOpen(false); }}
-              className="flex items-center gap-2 px-2 py-1 rounded text-xs text-[#666] hover:bg-[#383838] hover:text-[#999] transition-colors mt-0.5 border-t border-[#333] pt-1"
+              className="flex items-center gap-2 px-2 py-1 rounded text-xs text-[#666] hover:bg-[#383838] hover:text-[#999] transition-colors mt-0.5 border-t border-[#2a2a2a] pt-1"
             >
               <X className="w-3 h-3" /> הסר
             </button>
@@ -322,6 +322,8 @@ function BacklogImportPopup({
   return createPortal(
     <div
       ref={ref}
+      onMouseDown={e => e.stopPropagation()}
+      onClick={e => e.stopPropagation()}
       style={pos ? { position: 'fixed', top: pos.top, left: pos.left } : { position: 'fixed', visibility: 'hidden' }}
       className="z-[9999] bg-[#2c2c2c] border border-[#404040] rounded-xl shadow-2xl p-2 w-72 max-h-80 flex flex-col gap-1.5"
     >
@@ -448,6 +450,7 @@ function DraggableCard({
   const backlogTriggerRef = useRef<HTMLButtonElement>(null);
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const [bgColorKey, setBgColorKey] = useState<string>(initialBgColor ?? 'default');
+  const [modalOpen, setModalOpen] = useState(false);
   const colorPickerRef = useRef<HTMLDivElement>(null);
   const dragSrc = useRef<number | null>(null);
   const fromGrip = useRef(false);
@@ -460,6 +463,15 @@ function DraggableCard({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [colorPickerOpen]);
+
+  useEffect(() => {
+    if (!modalOpen) return;
+    function handler(e: KeyboardEvent) {
+      if (e.key === 'Escape') setModalOpen(false);
+    }
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [modalOpen]);
 
   function changeBgColor(key: string) { setBgColorKey(key); onBgColorChange(key); setColorPickerOpen(false); }
   const colors = cardColorStyles(bgColorKey);
@@ -555,9 +567,9 @@ function DraggableCard({
     }, 0);
   }
 
-  const itemsBody = (
+  const makeItemsBody = (large = false) => (
     <div className="flex-1">
-      <div className="flex flex-col gap-1">
+      <div className={`flex flex-col ${large ? 'gap-2' : 'gap-1'}`}>
         {items.map((item, idx) => (
           <div
             key={item.id}
@@ -566,14 +578,14 @@ function DraggableCard({
             onDragOver={e => { if (item.text.trim() !== '') onDragOver(e, idx); }}
             onDrop={e => { if (item.text.trim() !== '') onDrop(e, idx); }}
             onDragEnd={onDragEnd}
-            className={`flex items-center gap-1 group/item rounded transition-colors ${overIdx === idx && dragSrc.current !== idx ? 'bg-[#333]' : ''}`}
+            className={`flex items-center gap-1.5 group/item rounded transition-colors ${overIdx === idx && dragSrc.current !== idx ? 'bg-[#333]' : ''}`}
           >
             <button
               onClick={() => { if (items.length > 1) changeItems(items.filter((_, i) => i !== idx)); }}
               tabIndex={-1}
               className={`shrink-0 opacity-0 transition-opacity text-[#555] hover:text-red-400 ${item.text.trim() !== '' && items.length > 1 ? 'group-hover/item:opacity-100' : 'pointer-events-none'}`}
             >
-              <X className="w-3 h-3" />
+              <X className={large ? 'w-4 h-4' : 'w-3 h-3'} />
             </button>
             <input
               value={item.text}
@@ -582,11 +594,11 @@ function DraggableCard({
               placeholder="הוסף פריט..."
               dir="rtl"
               draggable={false}
-              className="item-input flex-1 bg-transparent text-[#d4d4d4] text-sm focus:outline-none placeholder:text-[#444] min-w-0"
+              className={`item-input flex-1 bg-transparent text-[#d4d4d4] focus:outline-none placeholder:text-[#444] min-w-0 ${large ? 'text-base py-0.5' : 'text-sm'}`}
             />
             <TypePicker current={item.issueType} onChange={t => updateItemType(item.id, t)} isEmpty={item.text.trim() === ''} />
             <GripVertical
-              className={`w-3.5 h-3.5 text-[#444] shrink-0 opacity-0 transition-opacity ${item.text.trim() !== '' ? 'cursor-grab active:cursor-grabbing group-hover/item:opacity-100' : 'pointer-events-none'}`}
+              className={`text-[#444] shrink-0 opacity-0 transition-opacity ${item.text.trim() !== '' ? 'cursor-grab active:cursor-grabbing group-hover/item:opacity-100' : 'pointer-events-none'} ${large ? 'w-4 h-4' : 'w-3.5 h-3.5'}`}
               onMouseDown={() => { if (item.text.trim() !== '') fromGrip.current = true; }}
               onMouseUp={() => { fromGrip.current = false; }}
             />
@@ -595,6 +607,7 @@ function DraggableCard({
       </div>
     </div>
   );
+  const itemsBody = makeItemsBody();
 
   const footerButtons = (
     <div className="flex justify-between mt-1">
@@ -687,7 +700,7 @@ function DraggableCard({
                   className="flex items-center gap-1 text-[10px] text-[#555] hover:text-[#888] transition-colors"
                 >
                   <Plus className="w-3 h-3" />
-                  <span>ייבוא מ-Backlog</span>
+                  <span>הוסף מהבקלוג</span>
                 </button>
                 {backlogOpen && (
                   <BacklogImportPopup
@@ -779,6 +792,13 @@ function DraggableCard({
               </div>
             )}
           </div>
+          <button
+            onClick={() => setModalOpen(true)}
+            className="text-[#555] hover:text-[#888] transition-colors opacity-0 group-hover/card:opacity-100 p-0.5"
+            title="הגדל קוביה"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+          </button>
           <StatusDot status={status} />
         </div>
       </div>
@@ -788,14 +808,14 @@ function DraggableCard({
         {itemsBody}
         {/* Backlog import button */}
         {((backlogIssues && backlogIssues.length > 0) || (allBacklogIssues && allBacklogIssues.length > 0)) && (
-          <div className="relative mt-2">
+          <div className="relative mt-4">
             <button
               ref={backlogTriggerRef}
               onClick={() => setBacklogOpen(v => !v)}
-              className="flex items-center gap-1 text-[10px] text-[#555] hover:text-[#888] transition-colors"
+              className="flex items-center gap-1.5 text-[11px] text-[#777] hover:text-[#aaa] transition-colors group/backlog"
             >
-              <Plus className="w-3 h-3" />
-              <span>ייבוא מ-Backlog ({(backlogIssues ?? []).filter(i => !items.some(ci => ci.text.trim() === i.summary.trim())).length})</span>
+              <Plus className="w-3 h-3 shrink-0 text-indigo-500 group-hover/backlog:text-indigo-400 transition-colors" />
+              <span>הוסף מהבקלוג</span>
             </button>
             {backlogOpen && (
               <BacklogImportPopup
@@ -845,6 +865,149 @@ function DraggableCard({
       <div className="px-3 pb-3">
         {footerButtons}
       </div>
+
+      {/* Expanded modal */}
+      {modalOpen && createPortal(
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm"
+          style={{ background: 'rgba(0,0,0,0.6)' }}
+          onClick={() => setModalOpen(false)}
+        >
+          <div
+            data-card-id={devKey}
+            className="border rounded-2xl flex flex-col w-full max-w-3xl mx-6 shadow-2xl"
+            style={{ background: colors.card, borderColor: colors.border, maxHeight: '85vh' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="border-b px-5 py-4 flex items-center gap-3 rounded-t-2xl shrink-0" style={{ background: colors.header, borderColor: colors.border }}>
+              <input
+                value={title}
+                onChange={e => changeTitle(e.target.value)}
+                dir="rtl"
+                className="text-white text-lg font-bold text-right bg-transparent focus:outline-none border-b border-transparent focus:border-[#555] pb-0.5 flex-1 min-w-0 transition-colors"
+              />
+              <div className="flex items-center gap-2 shrink-0">
+                <StatusDot status={status} />
+                <button
+                  onClick={() => setModalOpen(false)}
+                  className="text-[#555] hover:text-[#888] transition-colors p-1"
+                  title="סגור"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal body */}
+            <div className="flex-1 overflow-y-auto px-5 pt-4 pb-3" onClick={handleBodyClick}>
+              {makeItemsBody(true)}
+              {/* Backlog import */}
+              {((backlogIssues && backlogIssues.length > 0) || (allBacklogIssues && allBacklogIssues.length > 0)) && (
+                <div className="relative mt-4">
+                  <button
+                    ref={backlogTriggerRef}
+                    onClick={() => setBacklogOpen(v => !v)}
+                    className="flex items-center gap-2 text-sm text-[#777] hover:text-[#aaa] transition-colors group/backlog"
+                  >
+                    <Plus className="w-4 h-4 shrink-0 text-indigo-500 group-hover/backlog:text-indigo-400 transition-colors" />
+                    <span>הוסף מהבקלוג</span>
+                  </button>
+                  {backlogOpen && (
+                    <BacklogImportPopup
+                      backlogIssues={backlogIssues ?? []}
+                      allBacklogIssues={allBacklogIssues}
+                      currentItems={items}
+                      onAdd={issue => {
+                        const filled = items.filter(it => it.text.trim() !== '');
+                        changeItems([...filled, makeItem(issue.summary, issue.type)]);
+                      }}
+                      onClose={() => setBacklogOpen(false)}
+                      triggerRef={backlogTriggerRef}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Slack form in modal */}
+            {slackOpen && (
+              <div className="flex gap-2 px-5 pb-2">
+                <input
+                  value={slackChannel}
+                  onChange={e => setSlackChannel(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSendSlack()}
+                  placeholder="#channel או @user"
+                  dir="ltr"
+                  autoFocus
+                  className="flex-1 bg-[#2c2c2c] border border-[#404040] rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-[#555] placeholder:text-[#555]"
+                />
+                <button
+                  onClick={handleSendSlack}
+                  disabled={slackSending}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 rounded-lg text-sm text-white transition-colors"
+                >
+                  {slackSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                </button>
+                <button onClick={() => { setSlackOpen(false); setSlackError(''); }}
+                  className="px-2 text-[#666] hover:text-[#999] transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+            {slackError && <p className="text-sm text-red-400 px-5 pb-1">{slackError}</p>}
+
+            {/* Modal footer */}
+            <div className="px-5 pb-5 pt-1 shrink-0 border-t" style={{ borderColor: colors.border }}>
+              <div className="flex justify-between mt-3">
+                <button
+                  onClick={onDelete}
+                  className="text-sm text-[#777] border border-[#404040] rounded-full px-4 py-1.5 hover:border-red-800 hover:text-red-400 transition-colors"
+                >
+                  מחק
+                </button>
+                <div className="flex gap-2">
+                  {status !== 'empty' && (
+                    <button
+                      onClick={() => setSlackOpen(v => !v)}
+                      title="שלח לסלאק"
+                      className="text-sm text-[#777] border border-[#404040] rounded-full px-4 py-1.5 hover:border-indigo-600 hover:text-indigo-400 transition-colors flex items-center gap-1.5"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      סלאק
+                    </button>
+                  )}
+                  {undoItems && (
+                    <button
+                      onClick={() => { changeItems(undoItems); setUndoItems(null); }}
+                      className="text-sm text-[#777] border border-[#404040] rounded-full px-4 py-1.5 hover:border-indigo-600 hover:text-indigo-400 transition-colors"
+                    >
+                      שחזר
+                    </button>
+                  )}
+                  <button
+                    onClick={() => { setUndoItems(items); changeItems([makeItem()]); }}
+                    className="text-sm text-[#777] border border-[#404040] rounded-full px-4 py-1.5 hover:border-[#666] hover:text-[#aaa] transition-colors"
+                  >
+                    נקה
+                  </button>
+                  <button
+                    onClick={onToggleReady}
+                    className={`text-sm border rounded-full px-4 py-1.5 transition-colors ${
+                      isReady
+                        ? 'border-emerald-600 text-emerald-400 hover:border-red-700 hover:text-red-400'
+                        : 'border-[#404040] text-[#777] hover:border-emerald-600 hover:text-emerald-400'
+                    }`}
+                  >
+                    {isReady ? 'מוכן ✓' : 'סמן כמוכן'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
