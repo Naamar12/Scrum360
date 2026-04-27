@@ -223,15 +223,6 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-3">
-            <button className="w-[34px] h-[34px] rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors border-0" title="Search">
-              <Search className="w-4 h-4" />
-            </button>
-            <button className="w-[34px] h-[34px] rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors border-0" title="Help">
-              <HelpCircle className="w-4 h-4" />
-            </button>
-            <button className="w-[34px] h-[34px] rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors border-0" title="Notifications">
-              <Bell className="w-4 h-4" />
-            </button>
             <label htmlFor="global-filter" className="text-sm text-slate-500 ml-1">
               Global Filter:
             </label>
@@ -257,19 +248,6 @@ export default function App() {
         
         {activeTab === 'dashboard' ? (
           <>
-            {/* SECURITY & ARCHITECTURE BANNER */}
-            <div className="rounded-xl p-4 flex items-start gap-4 border" style={{ background: 'linear-gradient(180deg, #effaf3 0%, #ebf8f0 100%)', borderColor: '#cfeadb' }}>
-              <div className="shrink-0 w-9 h-9 rounded-[10px] flex items-center justify-center" style={{ background: '#d6f0e0', color: '#157246' }}>
-                <Shield className="w-[18px] h-[18px]" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900 mb-1">Secure Backend Architecture Active</h3>
-                <p className="text-sm leading-relaxed" style={{ color: '#1a2138' }}>
-                  <strong style={{ color: '#136539' }}>Zero-Client Exposure:</strong> All API keys for Jira, Firebase, and Slack/Microsoft are securely managed on the Node.js backend via <code className="px-1.5 py-0.5 rounded text-xs font-mono" style={{ background: '#c8eed7', color: '#15633e', border: '1px solid #a5dec0' }}>.env</code>. The frontend only receives aggregated, sanitized JSON payloads through an internal authenticated API layer. No direct external calls are made from the browser.
-                </p>
-              </div>
-            </div>
-
         {/* JIRA CONNECTION STATUS */}
         <div className="rounded-xl p-4 flex items-start gap-4 border" style={
           jiraStatus.loading
