@@ -327,6 +327,236 @@ async function startServer() {
     }
   });
 
+  // Sprint Insights: stuck work items based on 85th percentile of historical status duration
+  const insightsCache = new Map<string, { data: any; ts: number }>();
+  const INSIGHTS_CACHE_TTL = 5 * 60_000; // 5 minutes
+
+  app.get("/api/jira/sprint-insights", async (req, res) => {
+    const { JIRA_DOMAIN, JIRA_EMAIL, JIRA_API_TOKEN } = process.env;
+    const team = (req.query.team as string) || 'v1';
+
+    const boardMap: Record<string, string | undefined> = {
+      'v1': process.env.JIRA_BOARD_ID_V1,
+      'mako': process.env.JIRA_BOARD_ID_MAKO3,
+      'mako3': process.env.JIRA_BOARD_ID_MAKO3,
+      'N12': process.env.JIRA_BOARD_ID_N12,
+      '12+': process.env.JIRA_BOARD_ID_12_SCRUM,
+      '12 ': process.env.JIRA_BOARD_ID_12_SCRUM, // '+' decoded as space in query strings
+      '12+scrum': process.env.JIRA_BOARD_ID_12_SCRUM,
+    };
+
+    if (!JIRA_DOMAIN || !JIRA_EMAIL || !JIRA_API_TOKEN) {
+      return res.status(400).json({ error: 'Jira not configured' });
+    }
+
+    // '+' in query strings is decoded as a space — normalise back
+    const boardId = boardMap[team] ?? boardMap[team.trim() + '+'];
+    if (!boardId) {
+      return res.status(400).json({ error: `Board not configured for team: ${team}` });
+    }
+
+    const cached = insightsCache.get(team);
+    if (cached && Date.now() - cached.ts < INSIGHTS_CACHE_TTL) {
+      return res.json(cached.data);
+    }
+
+    try {
+      const auth = Buffer.from(`${JIRA_EMAIL}:${JIRA_API_TOKEN}`).toString('base64');
+      let cleanDomain = JIRA_DOMAIN.trim()
+        .replace(/^https?:\/\//, '')
+        .replace(/\.atlassian\.net.*$/, '')
+        .replace(/\/.*$/, '');
+
+      let cleanBoardId = boardId;
+      const bMatch = cleanBoardId.match(/(\d+)$/);
+      if (bMatch) cleanBoardId = bMatch[1];
+
+      const headers = { 'Authorization': `Basic ${auth}`, 'Accept': 'application/json' };
+
+      // Round 1: active + closed sprints in parallel
+      const [activeSprintsRes, closedSprintsRes] = await Promise.all([
+        fetch(`https://${cleanDomain}.atlassian.net/rest/agile/1.0/board/${cleanBoardId}/sprint?state=active`, { headers }),
+        fetch(`https://${cleanDomain}.atlassian.net/rest/agile/1.0/board/${cleanBoardId}/sprint?state=closed`, { headers }),
+      ]);
+
+      if (!activeSprintsRes.ok) throw new Error('Failed to fetch active sprint');
+      const activeSprintsData = await activeSprintsRes.json();
+      const activeSprint = activeSprintsData.values?.find((s: any) => s.state === 'active');
+      if (!activeSprint) return res.json({ stuckGroups: [], totalStuck: 0 });
+
+      // Resolve the 5 most-recent closed sprint IDs.
+      // The closed-sprints endpoint returns results oldest-first, so we must paginate
+      // to the last page to get the sprints closest to today.
+      let recentClosedSprintIds: number[] = [];
+      if (closedSprintsRes.ok) {
+        const closedData = await closedSprintsRes.json();
+        const total: number = closedData.total || 0;
+        let allClosedValues: any[] = closedData.values || [];
+
+        // If there are more pages, fetch the last one (most-recent sprints live there)
+        if (!closedData.isLast && total > allClosedValues.length) {
+          const lastPageStart = Math.max(0, total - 50);
+          const lastPageRes = await fetch(
+            `https://${cleanDomain}.atlassian.net/rest/agile/1.0/board/${cleanBoardId}/sprint?state=closed&maxResults=50&startAt=${lastPageStart}`,
+            { headers }
+          );
+          if (lastPageRes.ok) {
+            const lastPageData = await lastPageRes.json();
+            allClosedValues = lastPageData.values || [];
+          }
+        }
+
+        recentClosedSprintIds = (allClosedValues as any[])
+          .sort((a, b) => b.id - a.id)
+          .slice(0, 5)
+          .map((s) => s.id);
+      }
+
+      // Round 2: active sprint issues (via board endpoint — same set as the main dashboard) +
+      // 5 most-recent closed sprint issues for historical p85, in parallel.
+      // Using board/issue?jql=sprint=X is critical: /sprint/{id}/issue misses items that
+      // inherit their sprint assignment from a parent (sub-tasks).
+      const activeJql = encodeURIComponent(`sprint = ${activeSprint.id}`);
+      const activeIssuesUrl = `https://${cleanDomain}.atlassian.net/rest/agile/1.0/board/${cleanBoardId}/issue?jql=${activeJql}&fields=summary,status,assignee,issuetype,created&expand=changelog&maxResults=200`;
+
+      const allFetches: Promise<Response>[] = [
+        fetch(activeIssuesUrl, { headers }),
+        ...recentClosedSprintIds.map((id) =>
+          fetch(
+            `https://${cleanDomain}.atlassian.net/rest/agile/1.0/sprint/${id}/issue?fields=status&expand=changelog&maxResults=100`,
+            { headers }
+          )
+        ),
+      ];
+      const [activeIssuesRes, ...closedResArray] = await Promise.all(allFetches);
+
+      const activeIssues: any[] = activeIssuesRes.ok
+        ? (await activeIssuesRes.json()).issues || []
+        : [];
+
+      const closedSprintIssues: any[] = (
+        await Promise.all(
+          closedResArray.map((r) => (r.ok ? r.json().then((d: any) => d.issues || []) : Promise.resolve([])))
+        )
+      ).flat();
+
+      // Build historical duration map: status → [hours spent in that status] from closed sprint
+      const statusDurations: Record<string, number[]> = {};
+      for (const issue of closedSprintIssues) {
+        const histories = (issue.changelog?.histories || [])
+          .filter((h: any) => h.items?.some((i: any) => i.field === 'status'))
+          .sort((a: any, b: any) => new Date(a.created).getTime() - new Date(b.created).getTime());
+
+        let prevStatus: string | null = null;
+        let prevTime: number | null = null;
+        for (const h of histories) {
+          const item = h.items.find((i: any) => i.field === 'status');
+          if (!item) continue;
+          const t = new Date(h.created).getTime();
+          if (prevStatus !== null && prevTime !== null) {
+            const hours = (t - prevTime) / 3_600_000;
+            if (hours > 0 && hours < 30 * 24) {
+              (statusDurations[prevStatus] ??= []).push(hours);
+            }
+          }
+          prevStatus = item.toString;
+          prevTime = t;
+        }
+      }
+
+      // 85th percentile helper (requires ≥5 samples to be meaningful)
+      const p85 = (arr: number[]): number => {
+        if (arr.length < 5) return 0;
+        const sorted = [...arr].sort((a, b) => a - b);
+        return sorted[Math.ceil(0.85 * sorted.length) - 1];
+      };
+
+      const historicalThresholds: Record<string, number> = {};
+      for (const [status, durations] of Object.entries(statusDurations)) {
+        const val = p85(durations);
+        if (val > 0) historicalThresholds[status] = val;
+      }
+
+      // Minimum threshold: never flag items stuck for less than 1 week
+      const MIN_THRESHOLD_HOURS = 168;
+
+      // Fallback thresholds — all floored at 1 week minimum
+      const defaultThresholds: Record<string, number> = {
+        'In Progress': 168,
+        'Code Review': 168,
+        'Waiting for QA': 168,
+        'Waiting for QA deploy': 168,
+        'Waiting For Deploy': 168,
+        'Waiting For QA deploy': 168,
+        'QA': 168,
+        'To Do': 168,
+      };
+      const getThreshold = (status: string) =>
+        Math.max(MIN_THRESHOLD_HOURS, historicalThresholds[status] ?? defaultThresholds[status] ?? MIN_THRESHOLD_HOURS);
+
+      // Find the exact time an issue most-recently entered its CURRENT status via changelog.
+      // We look for the most recent transition whose "toString" matches the issue's current status.
+      const statusEntryTime = (issue: any): number => {
+        const currentStatus = issue.fields.status?.name;
+        const histories = (issue.changelog?.histories || [])
+          .filter((h: any) => h.items?.some((i: any) => i.field === 'status'))
+          .sort((a: any, b: any) => new Date(b.created).getTime() - new Date(a.created).getTime());
+        for (const h of histories) {
+          const item = h.items.find((i: any) => i.field === 'status');
+          if (item && item.toString === currentStatus) {
+            return new Date(h.created).getTime();
+          }
+        }
+        return new Date(issue.fields.created || Date.now()).getTime();
+      };
+
+      const now = Date.now();
+      const stuckByStatus: Record<string, { items: any[]; threshold: number }> = {};
+
+      for (const issue of activeIssues) {
+        // Skip "Done" items
+        if (issue.fields.status?.statusCategory?.key === 'done') continue;
+        // Skip unstarted "To Do" items — Jira Sprint Insights never flags these as stuck
+        if (issue.fields.status?.statusCategory?.key === 'new') continue;
+        // Skip sub-tasks — Jira Sprint Insights shows only top-level work items
+        if (issue.fields.issuetype?.subtask === true) continue;
+
+        const status = issue.fields.status?.name || 'Unknown';
+        const thr = getThreshold(status);
+        const entryTime = statusEntryTime(issue);
+        const hours = (now - entryTime) / 3_600_000;
+        if (hours < thr) continue;
+
+        (stuckByStatus[status] ??= { items: [], threshold: thr }).items.push({
+          key: issue.key,
+          summary: issue.fields.summary,
+          assignee: issue.fields.assignee?.displayName || 'Unassigned',
+          assigneeAvatarUrl: issue.fields.assignee?.avatarUrls?.['48x48'] ?? null,
+          hoursSinceChange: Math.floor(hours),
+          url: `https://${cleanDomain}.atlassian.net/browse/${issue.key}`,
+          type: issue.fields.issuetype?.name || 'Unknown',
+        });
+      }
+
+      const stuckGroups = Object.entries(stuckByStatus)
+        .map(([status, { items, threshold: thr }]) => ({
+          status,
+          threshold85th: Math.round(thr),
+          items: items.sort((a, b) => b.hoursSinceChange - a.hoursSinceChange),
+        }))
+        .sort((a, b) => b.items.length - a.items.length);
+
+      const totalStuck = stuckGroups.reduce((s, g) => s + g.items.length, 0);
+      const responseData = { stuckGroups, totalStuck };
+      insightsCache.set(team, { data: responseData, ts: Date.now() });
+      res.json(responseData);
+
+    } catch (error: any) {
+      console.error('Sprint insights error:', error);
+      res.status(500).json({ error: error.message || 'Failed to fetch sprint insights' });
+    }
+  });
+
   // Slack: deployed-versions messages per Global Filter user
   app.get("/api/slack/deployed-messages", async (req, res) => {
     const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;

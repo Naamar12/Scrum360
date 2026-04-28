@@ -13,7 +13,7 @@ import { twMerge } from 'tailwind-merge';
 import ItemDistributionWidget, { JiraIssue } from './components/ItemDistributionWidget';
 import SprintGoalsWidget from './components/SprintGoalsWidget';
 import ReleaseCubesWidget from './components/ReleaseCubesWidget';
-import StuckTasksModal from './components/StuckTasksModal';
+import SprintInsightsModal from './components/SprintInsightsModal';
 import NewItemsModal from './components/NewItemsModal';
 import MasterPrompt from './components/MasterPrompt';
 import SprintBriefingWidget from './components/SprintBriefingWidget';
@@ -148,9 +148,7 @@ export default function App() {
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
   const [isStuckTasksModalOpen, setIsStuckTasksModalOpen] = useState(false);
   const [isNewItemsModalOpen, setIsNewItemsModalOpen] = useState(false);
-  const [stuckTasksThreshold, setStuckTasksThreshold] = useState<number>(72);
-  const [stuckTasksStatus, setStuckTasksStatus] = useState<string>('In Progress');
-
+  const [insightsTotalStuck, setInsightsTotalStuck] = useState<number | null>(null);
   const releaseVersionsCount = useMemo(() => {
     const versions = new Set<string>();
     issues.filter(issue => issue.sprintState === 'active').forEach(issue => {
@@ -160,23 +158,7 @@ export default function App() {
     return versions.size;
   }, [issues]);
 
-  const stuckTasksCount = useMemo(() => {
-    const now = new Date().getTime();
-    return issues.filter(issue => {
-      if (issue.type.toLowerCase() !== 'sub-task') return false;
-      if (issue.sprintState !== 'active') return false;
-      
-      const normalizedIssueStatus = issue.status.toLowerCase().replace(/[_-\s]/g, '');
-      const normalizedFilterStatus = stuckTasksStatus.toLowerCase().replace(/[_-\s]/g, '');
-      if (normalizedIssueStatus !== normalizedFilterStatus) return false;
-      
-      if (!issue.statusChangedDate) return false;
-      
-      const changedDate = new Date(issue.statusChangedDate).getTime();
-      const hoursSinceChange = (now - changedDate) / (1000 * 60 * 60);
-      return hoursSinceChange >= stuckTasksThreshold;
-    }).length;
-  }, [issues, stuckTasksThreshold, stuckTasksStatus]);
+  const stuckTasksCount = insightsTotalStuck ?? 0;
 
   const newItemsCount = useMemo(() => {
     const today = new Date();
@@ -192,8 +174,16 @@ export default function App() {
   // Fetch Jira data from our secure backend
   useEffect(() => {
     setIssues([]); // Clear stale data so SprintBriefing detects the filter change
+    setInsightsTotalStuck(null);
     async function fetchJiraData() {
       setJiraStatus(prev => ({ ...prev, loading: true }));
+
+      // Fetch insights count in parallel (best-effort — badge stays null until resolved)
+      fetch(`/api/jira/sprint-insights?team=${encodeURIComponent(filter)}`)
+        .then(r => r.json())
+        .then(d => { if (typeof d.totalStuck === 'number') setInsightsTotalStuck(d.totalStuck); })
+        .catch(() => {});
+
       try {
         const res = await fetch(`/api/jira/sprint?team=${encodeURIComponent(filter)}`);
         
@@ -385,8 +375,8 @@ export default function App() {
           <div onClick={() => setIsStuckTasksModalOpen(true)} className="cursor-pointer">
             <KpiCard
               title="Stuck Tasks"
-              value={stuckTasksCount.toString()}
-              sub={`> ${stuckTasksThreshold / 24} days in ${stuckTasksStatus}`}
+              value={insightsTotalStuck === null ? '…' : stuckTasksCount.toString()}
+              sub="Active sprint · Sprint Insights"
               icon={<Clock className="w-[18px] h-[18px]" style={{ color: '#b03217' }} />}
               iconBg="#fde6e1"
               accentColor="#ff5b3a"
@@ -576,19 +566,11 @@ export default function App() {
         </div>
       )}
 
-      {/* STUCK TASKS MODAL */}
+      {/* SPRINT INSIGHTS MODAL */}
       {isStuckTasksModalOpen && (
-        <StuckTasksModal 
-          issues={issues} 
-          thresholdHours={stuckTasksThreshold}
-          onThresholdChange={setStuckTasksThreshold}
-          statusFilter={stuckTasksStatus}
-          onStatusFilterChange={setStuckTasksStatus}
-          onClose={() => {
-            setIsStuckTasksModalOpen(false);
-            setStuckTasksThreshold(72);
-            setStuckTasksStatus('In Progress');
-          }} 
+        <SprintInsightsModal
+          team={filter}
+          onClose={() => setIsStuckTasksModalOpen(false)}
         />
       )}
 
