@@ -121,6 +121,13 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'briefing' | 'more'>('dashboard');
   const [isMasterPromptOpen, setIsMasterPromptOpen] = useState(false);
   const [filter, setFilter] = useState('v1');
+  const handleFilterChange = (newFilter: string) => {
+    // Clear issues and change filter in the same React batch (React 18 automatic batching).
+    // This ensures SprintBriefingWidget remounts with issues=[] so it never sees stale
+    // data from the previous filter during its useState initializer.
+    setIssues([]);
+    setFilter(newFilter);
+  };
   const [burndownData, setBurndownData] = useState(defaultBurndownData);
   const [issues, setIssues] = useState<JiraIssue[]>([]);
   const [sprintGoalText, setSprintGoalText] = useState<string>('');
@@ -289,7 +296,7 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3 self-center">
-            <FilterImageDropdown value={filter} onChange={setFilter} />
+            <FilterImageDropdown value={filter} onChange={handleFilterChange} />
             <button
               onClick={() => setIsMasterPromptOpen(true)}
               className="w-[34px] h-[34px] flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
