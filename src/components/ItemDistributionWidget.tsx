@@ -46,10 +46,21 @@ export default function ItemDistributionWidget({ issues, nextSprintName }: ItemD
   const [itemType, setItemType] = useState<'Bugs' | 'Sub-Bugs' | 'User Stories' | 'All Items'>('User Stories');
   const [viewMode, setViewMode] = useState<'current' | 'all'>('current');
   const [selectedAssignee, setSelectedAssignee] = useState<string>('All');
+  const [selectedStatus, setSelectedStatus] = useState<string>('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: 'status' | 'assignee', direction: 'asc' | 'desc' } | null>(null);
   const [includeDone, setIncludeDone] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [collapsedParents, setCollapsedParents] = useState<Set<string>>(new Set());
+
+  const toggleParent = (parentKey: string) => {
+    setCollapsedParents(prev => {
+      const next = new Set(prev);
+      if (next.has(parentKey)) next.delete(parentKey);
+      else next.add(parentKey);
+      return next;
+    });
+  };
 
   const baseIssues = useMemo(() => {
     if (viewMode === 'current') {
@@ -94,6 +105,15 @@ export default function ItemDistributionWidget({ issues, nextSprintName }: ItemD
     return ['All', ...sorted];
   }, [typeFilteredIssues, includeDone]);
 
+  const uniqueStatuses = useMemo(() => {
+    const statuses = new Set<string>();
+    typeFilteredIssues.forEach(issue => {
+      const isDone = ['done', 'closed', 'resolved'].includes(issue.status.toLowerCase());
+      if (includeDone || !isDone) statuses.add(issue.status);
+    });
+    return ['All', ...Array.from(statuses).sort()];
+  }, [typeFilteredIssues, includeDone]);
+
   // Reset selected assignee if they are no longer in the filtered list
   useEffect(() => {
     if (selectedAssignee !== 'All' && !uniqueAssignees.includes(selectedAssignee)) {
@@ -101,19 +121,26 @@ export default function ItemDistributionWidget({ issues, nextSprintName }: ItemD
     }
   }, [uniqueAssignees, selectedAssignee]);
 
-  // Filter issues based on selected assignee (for the modal)
+  useEffect(() => {
+    if (selectedStatus !== 'All' && !uniqueStatuses.includes(selectedStatus)) {
+      setSelectedStatus('All');
+    }
+  }, [uniqueStatuses, selectedStatus]);
+
+  // Filter issues based on selected assignee/status (for the modal)
   const modalFilteredIssues = useMemo(() => {
     return typeFilteredIssues.filter(issue => {
       const assigneeMatch = selectedAssignee === 'All' || issue.assignee === selectedAssignee;
+      const statusFilterMatch = selectedStatus === 'All' || issue.status === selectedStatus;
       const isDone = ['done', 'closed', 'resolved'].includes(issue.status.toLowerCase());
-      const statusMatch = includeDone ? true : !isDone;
-      const searchMatch = searchQuery === '' || 
-        issue.key.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      const doneMatch = includeDone ? true : !isDone;
+      const searchMatch = searchQuery === '' ||
+        issue.key.toLowerCase().includes(searchQuery.toLowerCase()) ||
         issue.summary.toLowerCase().includes(searchQuery.toLowerCase());
-        
-      return assigneeMatch && statusMatch && searchMatch;
+
+      return assigneeMatch && statusFilterMatch && doneMatch && searchMatch;
     });
-  }, [typeFilteredIssues, selectedAssignee, includeDone, searchQuery]);
+  }, [typeFilteredIssues, selectedAssignee, selectedStatus, includeDone, searchQuery]);
 
   // Group by status for the Donut chart
   const chartData = useMemo(() => {
@@ -135,7 +162,7 @@ export default function ItemDistributionWidget({ issues, nextSprintName }: ItemD
 
   const renderTable = (title: string, data: JiraIssue[]) => {
     if (data.length === 0) return null;
-    
+
     const sortedData = [...data];
     if (sortConfig) {
       sortedData.sort((a, b) => {
@@ -160,7 +187,102 @@ export default function ItemDistributionWidget({ issues, nextSprintName }: ItemD
         setSortConfig({ key, direction: 'asc' });
       }
     };
-    
+
+    const renderIssueRow = (issue: JiraIssue, showParentCol: boolean) => (
+      <tr key={issue.id} className="hover:bg-slate-50">
+        <td className="px-4 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">
+          <div className="flex items-center gap-1.5">
+            {issue.type.toLowerCase().includes('bug') && (
+              <Bug className={cn(
+                "w-3.5 h-3.5 shrink-0",
+                issue.type.toLowerCase().includes('sub') ? "text-blue-500" : "text-red-500"
+              )} />
+            )}
+            {issue.type.toLowerCase().includes('story') && (
+              <Bookmark className="w-3.5 h-3.5 text-green-500 shrink-0 fill-green-500" />
+            )}
+            {issue.type.toLowerCase() === 'task' && (
+              <CheckSquare className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+            )}
+            <span>{issue.key}</span>
+          </div>
+        </td>
+        <td className={cn("px-4 py-3 max-w-0", showParentCol ? "w-1/2" : "w-full")}>
+          <div className="flex items-center gap-1.5 min-w-0">
+            {isCreatedToday(issue.createdDate) && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">New</span>
+            )}
+            <a
+              href={issue.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline font-medium inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 min-w-0"
+              title={issue.summary}
+            >
+              <span className="truncate">{issue.summary}</span>
+              <ExternalLink className="w-3 h-3 opacity-50 shrink-0" />
+            </a>
+          </div>
+        </td>
+        {showParentCol && (
+          <td className="px-4 py-3 max-w-0 w-1/2">
+            {issue.parentKey ? (
+              <a
+                href={issue.url.replace(issue.key, issue.parentKey)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-indigo-600 hover:text-indigo-800 hover:underline font-medium inline-flex items-center gap-1 w-full"
+                title={issue.parentSummary || issue.parentKey}
+              >
+                <span className="truncate">{issue.parentSummary || issue.parentKey}</span>
+                <ExternalLink className="w-3 h-3 opacity-50 shrink-0" />
+              </a>
+            ) : (
+              <span className="text-slate-400 text-xs italic">No Parent</span>
+            )}
+          </td>
+        )}
+        <td className="px-4 py-3 whitespace-nowrap">
+          <button
+            onClick={() => setSelectedAssignee(selectedAssignee === issue.assignee ? 'All' : issue.assignee)}
+            className="flex items-center gap-2 hover:bg-slate-200/50 p-1 -ml-1 rounded transition-colors text-left w-full"
+          >
+            <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600 shrink-0">
+              {issue.assignee.charAt(0).toUpperCase()}
+            </div>
+            <span className="text-slate-700 truncate max-w-[120px]">{issue.assignee}</span>
+          </button>
+        </td>
+        <td className="px-4 py-3 whitespace-nowrap">
+          <button
+            onClick={() => setSelectedStatus(selectedStatus === issue.status ? 'All' : issue.status)}
+            className={cn(
+              "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium transition-colors",
+              selectedStatus === issue.status
+                ? "bg-violet-100 text-violet-700 ring-1 ring-violet-300"
+                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+            )}
+          >
+            {issue.status}
+          </button>
+        </td>
+      </tr>
+    );
+
+    // For Sub-Bugs: group by parent and allow collapsing when multiple parents exist
+    const isSubBugs = itemType === 'Sub-Bugs';
+    const groupsMap = new Map<string, JiraIssue[]>();
+    if (isSubBugs) {
+      sortedData.forEach(issue => {
+        const key = issue.parentKey || '__no_parent__';
+        if (!groupsMap.has(key)) groupsMap.set(key, []);
+        groupsMap.get(key)!.push(issue);
+      });
+    }
+    const groups = Array.from(groupsMap.entries())
+      .sort((a, b) => b[1].length - a[1].length);
+    const hasMultipleParents = groups.length > 1;
+
     return (
       <div className="mb-8 last:mb-0">
         <h3 className="text-lg font-semibold text-slate-900 mb-4">{title} ({data.length})</h3>
@@ -169,11 +291,11 @@ export default function ItemDistributionWidget({ issues, nextSprintName }: ItemD
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-4 py-3 font-medium text-slate-500 whitespace-nowrap">Key</th>
-                <th className={cn("px-4 py-3 font-medium text-slate-500", itemType === 'Sub-Bugs' ? "w-1/2" : "w-full")}>Item Name</th>
-                {itemType === 'Sub-Bugs' && (
+                <th className={cn("px-4 py-3 font-medium text-slate-500", isSubBugs && !hasMultipleParents ? "w-1/2" : "w-full")}>Item Name</th>
+                {isSubBugs && !hasMultipleParents && (
                   <th className="px-4 py-3 font-medium text-slate-500 w-1/2">Parent</th>
                 )}
-                <th 
+                <th
                   className="px-4 py-3 font-medium text-slate-500 whitespace-nowrap cursor-pointer hover:bg-slate-100 transition-colors group select-none"
                   onClick={() => handleSort('assignee')}
                 >
@@ -190,7 +312,7 @@ export default function ItemDistributionWidget({ issues, nextSprintName }: ItemD
                     )}
                   </div>
                 </th>
-                <th 
+                <th
                   className="px-4 py-3 font-medium text-slate-500 whitespace-nowrap cursor-pointer hover:bg-slate-100 transition-colors group select-none"
                   onClick={() => handleSort('status')}
                 >
@@ -210,78 +332,57 @@ export default function ItemDistributionWidget({ issues, nextSprintName }: ItemD
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {sortedData.map(issue => (
-                <tr key={issue.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">
-                    <div className="flex items-center gap-1.5">
-                      {issue.type.toLowerCase().includes('bug') && (
-                        <Bug className={cn(
-                          "w-3.5 h-3.5 shrink-0",
-                          issue.type.toLowerCase().includes('sub') ? "text-blue-500" : "text-red-500"
-                        )} />
-                      )}
-                      {issue.type.toLowerCase().includes('story') && (
-                        <Bookmark className="w-3.5 h-3.5 text-green-500 shrink-0 fill-green-500" />
-                      )}
-                      {issue.type.toLowerCase() === 'task' && (
-                        <CheckSquare className="w-3.5 h-3.5 text-purple-500 shrink-0" />
-                      )}
-                      <span>{issue.key}</span>
-                    </div>
-                  </td>
-                  <td className={cn("px-4 py-3 max-w-0", itemType === 'Sub-Bugs' ? "w-1/2" : "w-full")}>
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      {isCreatedToday(issue.createdDate) && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">New</span>
-                      )}
-                      <a
-                        href={issue.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:underline font-medium inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 min-w-0"
-                        title={issue.summary}
-                      >
-                        <span className="truncate">{issue.summary}</span>
-                        <ExternalLink className="w-3 h-3 opacity-50 shrink-0" />
-                      </a>
-                    </div>
-                  </td>
-                  {itemType === 'Sub-Bugs' && (
-                    <td className="px-4 py-3 max-w-0 w-1/2">
-                      {issue.parentKey ? (
-                        <a 
-                          href={issue.url.replace(issue.key, issue.parentKey)} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-indigo-600 hover:text-indigo-800 hover:underline font-medium inline-flex items-center gap-1 w-full"
-                          title={issue.parentSummary || issue.parentKey}
-                        >
-                          <span className="truncate">{issue.parentSummary || issue.parentKey}</span>
-                          <ExternalLink className="w-3 h-3 opacity-50 shrink-0" />
-                        </a>
-                      ) : (
-                        <span className="text-slate-400 text-xs italic">No Parent</span>
-                      )}
-                    </td>
-                  )}
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <button 
-                      onClick={() => setSelectedAssignee(selectedAssignee === issue.assignee ? 'All' : issue.assignee)}
-                      className="flex items-center gap-2 hover:bg-slate-200/50 p-1 -ml-1 rounded transition-colors text-left w-full"
-                    >
-                      <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600 shrink-0">
-                        {issue.assignee.charAt(0).toUpperCase()}
-                      </div>
-                      <span className="text-slate-700 truncate max-w-[120px]">{issue.assignee}</span>
-                    </button>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-                      {issue.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {isSubBugs && hasMultipleParents ? (
+                groups.map(([parentKey, groupIssues]) => {
+                  const isCollapsed = collapsedParents.has(parentKey);
+                  const firstIssue = groupIssues[0];
+                  const parentUrl = firstIssue.parentKey
+                    ? firstIssue.url.replace(firstIssue.key, firstIssue.parentKey)
+                    : null;
+                  const parentLabel = firstIssue.parentSummary || firstIssue.parentKey || 'No Parent';
+
+                  return (
+                    <React.Fragment key={`group-${parentKey}`}>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        <td colSpan={5} className="px-4 py-2">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => toggleParent(parentKey)}
+                              className="flex items-center gap-1.5 text-slate-500 hover:text-slate-700 transition-colors shrink-0"
+                              title={isCollapsed ? 'Expand' : 'Collapse'}
+                            >
+                              <ChevronDown className={cn(
+                                "w-4 h-4 transition-transform duration-150",
+                                isCollapsed && "-rotate-90"
+                              )} />
+                            </button>
+                            {parentUrl ? (
+                              <a
+                                href={parentUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm font-semibold text-slate-700 hover:text-indigo-700 hover:underline inline-flex items-center gap-1 min-w-0"
+                                title={parentLabel}
+                              >
+                                <span className="truncate">{parentLabel}</span>
+                                <ExternalLink className="w-3 h-3 opacity-40 shrink-0" />
+                              </a>
+                            ) : (
+                              <span className="text-sm font-semibold text-slate-500 italic">{parentLabel}</span>
+                            )}
+                            <span className="text-xs text-slate-400 font-normal shrink-0">
+                              ({groupIssues.length})
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                      {!isCollapsed && groupIssues.map(issue => renderIssueRow(issue, false))}
+                    </React.Fragment>
+                  );
+                })
+              ) : (
+                sortedData.map(issue => renderIssueRow(issue, isSubBugs))
+              )}
             </tbody>
           </table>
         </div>
@@ -374,8 +475,10 @@ export default function ItemDistributionWidget({ issues, nextSprintName }: ItemD
             setIsModalOpen(true);
             setIncludeDone(false);
             setSelectedAssignee('All');
+            setSelectedStatus('All');
             setSortConfig(null);
             setSearchQuery('');
+            setCollapsedParents(new Set());
           }}
           className="mt-4 w-full py-2 text-sm font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
         >
