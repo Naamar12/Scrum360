@@ -58,50 +58,104 @@ function ItemDetailModal({ item, cardTitle, colors, onClose, onSave }: {
   onClose: () => void;
   onSave: (updated: ChecklistItem) => void;
 }) {
-  const [notes, setNotes] = useState(item.notes ?? '');
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { textareaRef.current?.focus(); }, []);
+  useEffect(() => {
+    if (editorRef.current) {
+      editorRef.current.innerHTML = item.notes ?? '';
+      editorRef.current.focus();
+      // place cursor at end
+      const range = document.createRange();
+      const sel = window.getSelection();
+      range.selectNodeContents(editorRef.current);
+      range.collapse(false);
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+    }
+  }, []);
 
   const commit = () => {
-    onSave({ ...item, notes });
+    onSave({ ...item, notes: editorRef.current?.innerHTML ?? '' });
     onClose();
+  };
+
+  const handleBold = (e: React.MouseEvent) => {
+    e.preventDefault(); // keep focus in editor
+    document.execCommand('bold');
+    editorRef.current?.focus();
   };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/50 backdrop-blur-sm"
       onClick={commit}
     >
       <div
-        className="bg-white rounded-xl shadow-xl w-full max-w-md flex flex-col overflow-hidden"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-5 py-3 flex items-center gap-2" style={{ background: colors.header }}>
-          <span className="flex-1 text-sm font-semibold truncate text-right" style={{ color: colors.headerText }} dir="rtl">
-            {item.text}
-          </span>
+        <div
+          className="px-6 py-4 rounded-t-2xl flex items-center gap-3"
+          style={{ background: colors.header, boxShadow: '0 1px 0 rgba(0,0,0,0.06)' }}
+          dir="rtl"
+        >
           <button
             onClick={commit}
-            className="shrink-0 p-1 rounded-lg hover:bg-white/40 transition-colors"
+            className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full hover:bg-black/10 transition-colors"
             style={{ color: colors.headerText }}
           >
             <X className="w-4 h-4" />
           </button>
+          <span
+            className="flex-1 text-sm font-bold leading-snug"
+            style={{ color: colors.headerText, textAlign: 'right' }}
+          >
+            {item.text}
+          </span>
         </div>
 
-        {/* Body */}
-        <div className="p-4">
-          <textarea
-            ref={textareaRef}
-            className="w-full text-sm rounded-lg px-3 py-2 outline-none resize-none"
-            style={{ border: `1px solid ${colors.border}`, color: '#334155', minHeight: 120 }}
-            placeholder="פרטים נוספים..."
-            value={notes}
-            onChange={e => setNotes(e.target.value)}
+        {/* Toolbar */}
+        <div className="px-6 pt-4 pb-1 flex justify-end">
+          <button
+            onMouseDown={handleBold}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-sm font-bold border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors select-none"
+            title="בולד (Ctrl+B)"
+          >
+            B
+          </button>
+        </div>
+
+        {/* Editor */}
+        <div className="px-6 pb-6">
+          <div
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
             dir="rtl"
+            className="w-full text-sm rounded-xl px-4 py-3 outline-none"
+            style={{
+              border: `1.5px solid ${colors.border}`,
+              color: '#334155',
+              lineHeight: '1.7',
+              minHeight: 200,
+              background: '#fafafa',
+              textAlign: 'right',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+            }}
+            data-placeholder="פרטים נוספים..."
+            onKeyDown={e => { if (e.key === 'Escape') commit(); }}
           />
+          {/* placeholder */}
+          <style>{`
+            [contenteditable]:empty::before {
+              content: attr(data-placeholder);
+              color: #94a3b8;
+              pointer-events: none;
+            }
+          `}</style>
+          {/* set placeholder via attribute after mount */}
         </div>
       </div>
     </div>
