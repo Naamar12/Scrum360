@@ -1,16 +1,43 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Plus, X, ChevronDown, GripVertical } from 'lucide-react';
+import { Plus, X, ChevronDown, GripVertical, Eye, Trash2 } from 'lucide-react';
 
 interface ChecklistItem {
   id: string;
   text: string;
   checked: boolean;
+  notes?: string;
+  createdAt?: number;
 }
 
 interface CardData {
   id: string;
   title: string;
   items: ChecklistItem[];
+  colorKey?: string;
+}
+
+const COLOR_PALETTE: Record<string, { header: string; headerText: string; border: string; bg: string; checkColor: string }> = {
+  red:    { header: 'linear-gradient(135deg,#fee2e2,#fecaca)', headerText: '#991b1b', border: '#fca5a5', bg: '#fff5f5', checkColor: '#ef4444' },
+  purple: { header: 'linear-gradient(135deg,#ede9fe,#ddd6fe)', headerText: '#5b21b6', border: '#c4b5fd', bg: '#faf8ff', checkColor: '#7c3aed' },
+  green:  { header: 'linear-gradient(135deg,#d1fae5,#a7f3d0)', headerText: '#065f46', border: '#6ee7b7', bg: '#f0fdf9', checkColor: '#059669' },
+  yellow: { header: 'linear-gradient(135deg,#fef3c7,#fde68a)', headerText: '#92400e', border: '#fcd34d', bg: '#fffbeb', checkColor: '#d97706' },
+  blue:   { header: 'linear-gradient(135deg,#dbeafe,#bfdbfe)', headerText: '#1e40af', border: '#93c5fd', bg: '#eff6ff', checkColor: '#3b82f6' },
+  pink:   { header: 'linear-gradient(135deg,#fce7f3,#fbcfe8)', headerText: '#9d174d', border: '#f9a8d4', bg: '#fdf2f8', checkColor: '#ec4899' },
+  teal:   { header: 'linear-gradient(135deg,#ccfbf1,#99f6e4)', headerText: '#134e4a', border: '#5eead4', bg: '#f0fdfa', checkColor: '#14b8a6' },
+  orange: { header: 'linear-gradient(135deg,#ffedd5,#fed7aa)', headerText: '#9a3412', border: '#fdba74', bg: '#fff7ed', checkColor: '#f97316' },
+};
+
+const COLOR_KEYS = Object.keys(COLOR_PALETTE);
+
+const CARD_COLOR_MAP: Record<string, string> = {
+  bugs: 'red',
+  features: 'purple',
+  connections: 'green',
+};
+
+function getCardColors(card: CardData) {
+  const key = card.colorKey ?? CARD_COLOR_MAP[card.id] ?? 'blue';
+  return COLOR_PALETTE[key] ?? COLOR_PALETTE.blue;
 }
 
 const INITIAL_CARDS: CardData[] = [
@@ -19,41 +46,184 @@ const INITIAL_CARDS: CardData[] = [
   { id: 'connections', title: 'חיבורים', items: [] },
 ];
 
-const CARD_COLORS: Record<string, { header: string; headerText: string; border: string; bg: string; checkColor: string }> = {
-  bugs:        { header: 'linear-gradient(135deg,#fee2e2,#fecaca)', headerText: '#991b1b', border: '#fca5a5', bg: '#fff5f5', checkColor: '#ef4444' },
-  features:    { header: 'linear-gradient(135deg,#ede9fe,#ddd6fe)', headerText: '#5b21b6', border: '#c4b5fd', bg: '#faf8ff', checkColor: '#7c3aed' },
-  connections: { header: 'linear-gradient(135deg,#d1fae5,#a7f3d0)', headerText: '#065f46', border: '#6ee7b7', bg: '#f0fdf9', checkColor: '#059669' },
-};
-
 const COLLAPSE_THRESHOLD = 2;
+const STORAGE_KEY = 'more-widget-cards';
+
+// ─── ItemDetailModal ──────────────────────────────────────────────────────────
+
+function ItemDetailModal({ item, cardTitle, colors, onClose, onSave }: {
+  item: ChecklistItem;
+  cardTitle: string;
+  colors: typeof COLOR_PALETTE[string];
+  onClose: () => void;
+  onSave: (updated: ChecklistItem) => void;
+}) {
+  const [notes, setNotes] = useState(item.notes ?? '');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => { textareaRef.current?.focus(); }, []);
+
+  const commit = () => {
+    onSave({ ...item, notes });
+    onClose();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
+      onClick={commit}
+    >
+      <div
+        className="bg-white rounded-xl shadow-xl w-full max-w-md flex flex-col overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-5 py-3 flex items-center gap-2" style={{ background: colors.header }}>
+          <span className="flex-1 text-sm font-semibold truncate text-right" style={{ color: colors.headerText }} dir="rtl">
+            {item.text}
+          </span>
+          <button
+            onClick={commit}
+            className="shrink-0 p-1 rounded-lg hover:bg-white/40 transition-colors"
+            style={{ color: colors.headerText }}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-4">
+          <textarea
+            ref={textareaRef}
+            className="w-full text-sm rounded-lg px-3 py-2 outline-none resize-none"
+            style={{ border: `1px solid ${colors.border}`, color: '#334155', minHeight: 120 }}
+            placeholder="פרטים נוספים..."
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            dir="rtl"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── AddCardModal ─────────────────────────────────────────────────────────────
+
+function AddCardModal({ onClose, onAdd }: {
+  onClose: () => void;
+  onAdd: (title: string, colorKey: string) => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [colorKey, setColorKey] = useState('blue');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const handleAdd = () => {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    onAdd(trimmed, colorKey);
+    onClose();
+  };
+
+  const colors = COLOR_PALETTE[colorKey];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-xl shadow-xl w-full max-w-sm flex flex-col overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-5 py-4" style={{ background: colors.header }}>
+          <h3 className="text-sm font-bold text-center" style={{ color: colors.headerText }}>כרטיסיה חדשה</h3>
+        </div>
+
+        {/* Body */}
+        <div className="p-5 flex flex-col gap-4" dir="rtl">
+          <div>
+            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide block mb-2">שם</label>
+            <input
+              ref={inputRef}
+              className="w-full text-sm rounded-lg px-3 py-2 outline-none"
+              style={{ border: '1px solid #e2e8f0', color: '#334155' }}
+              placeholder="שם הכרטיסיה..."
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAdd()}
+              dir="rtl"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide block mb-2">צבע</label>
+            <div className="flex gap-2 flex-wrap">
+              {COLOR_KEYS.map(key => (
+                <button
+                  key={key}
+                  onClick={() => setColorKey(key)}
+                  className="w-7 h-7 rounded-full border-2 transition-all"
+                  style={{
+                    background: COLOR_PALETTE[key].checkColor,
+                    borderColor: colorKey === key ? '#1e293b' : 'transparent',
+                    transform: colorKey === key ? 'scale(1.2)' : 'scale(1)',
+                  }}
+                  title={key}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 pb-5 flex justify-start gap-2">
+          <button
+            onClick={handleAdd}
+            disabled={!title.trim()}
+            className="px-4 py-2 text-sm rounded-lg text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-40"
+            style={{ background: colors.checkColor }}
+          >
+            הוסף
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+          >
+            ביטול
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── ItemRow ─────────────────────────────────────────────────────────────────
 
 interface ItemRowProps {
   item: ChecklistItem;
   cardId: string;
-  colors: typeof CARD_COLORS[string];
+  colors: typeof COLOR_PALETTE[string];
   isDragOver: boolean;
   onToggle: (cardId: string, itemId: string) => void;
   onDelete: (cardId: string, itemId: string) => void;
   onEdit: (cardId: string, itemId: string, text: string) => void;
+  onOpenDetail: (cardId: string, itemId: string) => void;
   onDragStart: (itemId: string) => void;
   onDragOver: (e: React.DragEvent, itemId: string) => void;
   onDrop: (e: React.DragEvent) => void;
   onDragEnd: () => void;
 }
 
-function ItemRow({ item, cardId, colors, isDragOver, onToggle, onDelete, onEdit, onDragStart, onDragOver, onDrop, onDragEnd }: ItemRowProps) {
+function ItemRow({ item, cardId, colors, isDragOver, onToggle, onDelete, onEdit, onOpenDetail, onDragStart, onDragOver, onDrop, onDragEnd }: ItemRowProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.text);
   const inputRef = useRef<HTMLInputElement>(null);
   const fromGrip = useRef(false);
 
-  useEffect(() => {
-    if (editing) inputRef.current?.select();
-  }, [editing]);
-
-  // keep draft in sync if item.text changes externally
+  useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
   useEffect(() => { setDraft(item.text); }, [item.text]);
 
   const commitEdit = () => {
@@ -67,6 +237,8 @@ function ItemRow({ item, cardId, colors, isDragOver, onToggle, onDelete, onEdit,
     if (e.key === 'Enter') commitEdit();
     if (e.key === 'Escape') { setDraft(item.text); setEditing(false); }
   };
+
+  const hasDetail = !!item.notes;
 
   return (
     <div
@@ -116,7 +288,7 @@ function ItemRow({ item, cardId, colors, isDragOver, onToggle, onDelete, onEdit,
         />
       ) : (
         <span
-          className="flex-1 text-sm leading-snug cursor-text select-none"
+          className="flex-1 text-sm leading-snug cursor-text select-none flex items-center gap-1.5"
           style={{
             color: item.checked ? '#a0a0a0' : '#334155',
             textDecoration: item.checked ? 'line-through' : 'none',
@@ -124,9 +296,22 @@ function ItemRow({ item, cardId, colors, isDragOver, onToggle, onDelete, onEdit,
           }}
           onClick={() => setEditing(true)}
         >
+          {hasDetail && (
+            <span className="shrink-0 w-2 h-2 rounded-full bg-indigo-400" title="יש פרטים נוספים" />
+          )}
           {item.text}
         </span>
       )}
+
+      {/* Eye / detail button — always visible on hover, highlighted when item has data */}
+      <button
+        onClick={() => onOpenDetail(cardId, item.id)}
+        className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-slate-100"
+        style={{ color: hasDetail ? colors.checkColor : '#94a3b8' }}
+        title="פרטים נוספים"
+      >
+        <Eye className="w-3.5 h-3.5" />
+      </button>
 
       <button
         onClick={() => onDelete(cardId, item.id)}
@@ -140,21 +325,20 @@ function ItemRow({ item, cardId, colors, isDragOver, onToggle, onDelete, onEdit,
 
 // ─── DraggableList ────────────────────────────────────────────────────────────
 
-function DraggableList({ items, cardId, colors, onToggle, onDelete, onEdit, onReorder }: {
+function DraggableList({ items, cardId, colors, onToggle, onDelete, onEdit, onOpenDetail, onReorder }: {
   items: ChecklistItem[];
   cardId: string;
-  colors: typeof CARD_COLORS[string];
+  colors: typeof COLOR_PALETTE[string];
   onToggle: (cardId: string, itemId: string) => void;
   onDelete: (cardId: string, itemId: string) => void;
   onEdit: (cardId: string, itemId: string, text: string) => void;
+  onOpenDetail: (cardId: string, itemId: string) => void;
   onReorder: (cardId: string, fromId: string, toId: string) => void;
 }) {
   const dragSrc = useRef<string | null>(null);
   const [overItemId, setOverItemId] = useState<string | null>(null);
 
-  const handleDragStart = useCallback((itemId: string) => {
-    dragSrc.current = itemId;
-  }, []);
+  const handleDragStart = useCallback((itemId: string) => { dragSrc.current = itemId; }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent, itemId: string) => {
     e.preventDefault();
@@ -188,6 +372,7 @@ function DraggableList({ items, cardId, colors, onToggle, onDelete, onEdit, onRe
           onToggle={onToggle}
           onDelete={onDelete}
           onEdit={onEdit}
+          onOpenDetail={onOpenDetail}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
           onDrop={handleDrop}
@@ -200,17 +385,20 @@ function DraggableList({ items, cardId, colors, onToggle, onDelete, onEdit, onRe
 
 // ─── ChecklistCard ────────────────────────────────────────────────────────────
 
-function ChecklistCard({ card, onToggle, onAdd, onDelete, onEdit, onReorder }: {
+function ChecklistCard({ card, onToggle, onAdd, onDelete, onEdit, onOpenDetail, onReorder, onDeleteCard }: {
   card: CardData;
   onToggle: (cardId: string, itemId: string) => void;
   onAdd: (cardId: string, text: string) => void;
   onDelete: (cardId: string, itemId: string) => void;
   onEdit: (cardId: string, itemId: string, text: string) => void;
+  onOpenDetail: (cardId: string, itemId: string) => void;
   onReorder: (cardId: string, fromId: string, toId: string) => void;
+  onDeleteCard: (cardId: string) => void;
 }) {
   const [inputValue, setInputValue] = useState('');
   const [completedOpen, setCompletedOpen] = useState(false);
-  const colors = CARD_COLORS[card.id];
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const colors = getCardColors(card);
 
   const unchecked = card.items.filter(i => !i.checked);
   const checked = card.items.filter(i => i.checked);
@@ -229,7 +417,7 @@ function ChecklistCard({ card, onToggle, onAdd, onDelete, onEdit, onReorder }: {
       style={{ border: `1px solid ${colors.border}`, background: colors.bg, minHeight: 280 }}
     >
       {/* Header */}
-      <div className="px-4 py-3 flex items-center relative" style={{ background: colors.header }}>
+      <div className="px-4 py-3 flex items-center relative group/header" style={{ background: colors.header }}>
         {card.items.length > 0 && (
           <span className="absolute left-4 text-xs font-semibold opacity-70 tabular-nums" style={{ color: colors.headerText }}>
             {checked.length}/{card.items.length}
@@ -238,6 +426,33 @@ function ChecklistCard({ card, onToggle, onAdd, onDelete, onEdit, onReorder }: {
         <h3 className="flex-1 text-sm font-bold tracking-wide text-center" style={{ color: colors.headerText }}>
           {card.title}
         </h3>
+        {confirmDelete ? (
+          <div className="absolute right-2 flex items-center gap-1">
+            <button
+              onClick={() => onDeleteCard(card.id)}
+              className="text-xs px-2 py-0.5 rounded text-white font-medium"
+              style={{ background: '#ef4444' }}
+            >
+              מחק
+            </button>
+            <button
+              onClick={() => setConfirmDelete(false)}
+              className="text-xs px-2 py-0.5 rounded border"
+              style={{ color: colors.headerText, borderColor: colors.headerText, opacity: 0.6 }}
+            >
+              ביטול
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="absolute right-2 opacity-0 group-hover/header:opacity-40 hover:!opacity-100 transition-opacity p-1 rounded"
+            style={{ color: colors.headerText }}
+            title="מחק כרטיסיה"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
       {/* Items */}
@@ -249,6 +464,7 @@ function ChecklistCard({ card, onToggle, onAdd, onDelete, onEdit, onReorder }: {
           onToggle={onToggle}
           onDelete={onDelete}
           onEdit={onEdit}
+          onOpenDetail={onOpenDetail}
           onReorder={onReorder}
         />
 
@@ -256,7 +472,6 @@ function ChecklistCard({ card, onToggle, onAdd, onDelete, onEdit, onReorder }: {
           <p className="text-xs text-slate-400 py-3 text-center">אין פריטים עדיין</p>
         )}
 
-        {/* Completed section */}
         {checked.length > 0 && (
           <div className="mt-1">
             {shouldCollapse ? (
@@ -282,6 +497,7 @@ function ChecklistCard({ card, onToggle, onAdd, onDelete, onEdit, onReorder }: {
                       onToggle={onToggle}
                       onDelete={onDelete}
                       onEdit={onEdit}
+                      onOpenDetail={onOpenDetail}
                       onReorder={onReorder}
                     />
                   </div>
@@ -301,6 +517,7 @@ function ChecklistCard({ card, onToggle, onAdd, onDelete, onEdit, onReorder }: {
                     onToggle={onToggle}
                     onDelete={onDelete}
                     onEdit={onEdit}
+                    onOpenDetail={onOpenDetail}
                     onReorder={onReorder}
                   />
                 </div>
@@ -336,14 +553,15 @@ function ChecklistCard({ card, onToggle, onAdd, onDelete, onEdit, onReorder }: {
 
 // ─── MoreWidget ───────────────────────────────────────────────────────────────
 
-const STORAGE_KEY = 'more-widget-cards';
-
 function loadCards(): CardData[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return INITIAL_CARDS;
     const parsed: CardData[] = JSON.parse(raw);
-    return INITIAL_CARDS.map(def => parsed.find(c => c.id === def.id) ?? def);
+    const initialMerged = INITIAL_CARDS.map(def => parsed.find(c => c.id === def.id) ?? def);
+    const initialIds = new Set(INITIAL_CARDS.map(c => c.id));
+    const customCards = parsed.filter(c => !initialIds.has(c.id));
+    return [...initialMerged, ...customCards];
   } catch {
     return INITIAL_CARDS;
   }
@@ -351,6 +569,8 @@ function loadCards(): CardData[] {
 
 export default function MoreWidget() {
   const [cards, setCards] = useState<CardData[]>(loadCards);
+  const [detailState, setDetailState] = useState<{ cardId: string; itemId: string } | null>(null);
+  const [showAddCard, setShowAddCard] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
@@ -360,7 +580,6 @@ export default function MoreWidget() {
     setCards(prev => prev.map(card => {
       if (card.id !== cardId) return card;
       const toggled = card.items.map(i => i.id === itemId ? { ...i, checked: !i.checked } : i);
-      // move newly checked to end, newly unchecked before first checked
       const item = toggled.find(i => i.id === itemId)!;
       const rest = toggled.filter(i => i.id !== itemId);
       const newItems = item.checked
@@ -377,7 +596,12 @@ export default function MoreWidget() {
   const handleAdd = useCallback((cardId: string, text: string) => {
     setCards(prev => prev.map(card => {
       if (card.id !== cardId) return card;
-      const newItem: ChecklistItem = { id: `${cardId}-${Date.now()}-${Math.random()}`, text, checked: false };
+      const newItem: ChecklistItem = {
+        id: `${cardId}-${Date.now()}-${Math.random()}`,
+        text,
+        checked: false,
+        createdAt: Date.now(),
+      };
       return { ...card, items: [...card.items, newItem] };
     }));
   }, []);
@@ -396,34 +620,98 @@ export default function MoreWidget() {
     }));
   }, []);
 
-  // Reorder: move `fromId` to just before `toId` (within same checked/unchecked group)
   const handleReorder = useCallback((cardId: string, fromId: string, toId: string) => {
     setCards(prev => prev.map(card => {
       if (card.id !== cardId) return card;
       const items = [...card.items];
       const fromIdx = items.findIndex(i => i.id === fromId);
-      const toIdx = items.findIndex(i => i.id === toId);
-      if (fromIdx === -1 || toIdx === -1) return card;
+      if (fromIdx === -1) return card;
       const [moved] = items.splice(fromIdx, 1);
       const insertAt = items.findIndex(i => i.id === toId);
+      if (insertAt === -1) return card;
       items.splice(insertAt, 0, moved);
       return { ...card, items };
     }));
   }, []);
 
+  const handleOpenDetail = useCallback((cardId: string, itemId: string) => {
+    setDetailState({ cardId, itemId });
+  }, []);
+
+  const handleSaveItem = useCallback((updated: ChecklistItem) => {
+    if (!detailState) return;
+    setCards(prev => prev.map(card => {
+      if (card.id !== detailState.cardId) return card;
+      return { ...card, items: card.items.map(i => i.id === updated.id ? updated : i) };
+    }));
+  }, [detailState]);
+
+  const handleAddCard = useCallback((title: string, colorKey: string) => {
+    const newCard: CardData = {
+      id: `card-${Date.now()}`,
+      title,
+      items: [],
+      colorKey,
+    };
+    setCards(prev => [...prev, newCard]);
+  }, []);
+
+  const handleDeleteCard = useCallback((cardId: string) => {
+    setCards(prev => prev.filter(c => c.id !== cardId));
+  }, []);
+
+  const detailCard = detailState ? cards.find(c => c.id === detailState.cardId) : null;
+  const detailItem = detailCard ? detailCard.items.find(i => i.id === detailState?.itemId) : null;
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {cards.map(card => (
-        <ChecklistCard
-          key={card.id}
-          card={card}
-          onToggle={handleToggle}
-          onAdd={handleAdd}
-          onDelete={handleDelete}
-          onEdit={handleEdit}
-          onReorder={handleReorder}
+    <>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {cards.map(card => (
+          <ChecklistCard
+            key={card.id}
+            card={card}
+            onToggle={handleToggle}
+            onAdd={handleAdd}
+            onDelete={handleDelete}
+            onEdit={handleEdit}
+            onOpenDetail={handleOpenDetail}
+            onReorder={handleReorder}
+            onDeleteCard={handleDeleteCard}
+          />
+        ))}
+
+        {/* Add card button */}
+        <button
+          onClick={() => setShowAddCard(true)}
+          className="rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2 transition-all hover:border-slate-400 hover:bg-slate-50 group"
+          style={{ borderColor: '#cbd5e1', minHeight: 280 }}
+        >
+          <span
+            className="w-10 h-10 rounded-full flex items-center justify-center border-2 border-dashed transition-colors group-hover:border-slate-400"
+            style={{ borderColor: '#cbd5e1' }}
+          >
+            <Plus className="w-5 h-5 text-slate-400 group-hover:text-slate-500" />
+          </span>
+          <span className="text-sm text-slate-400 group-hover:text-slate-500 font-medium">כרטיסיה חדשה</span>
+        </button>
+      </div>
+
+      {showAddCard && (
+        <AddCardModal
+          onClose={() => setShowAddCard(false)}
+          onAdd={handleAddCard}
         />
-      ))}
-    </div>
+      )}
+
+      {detailState && detailItem && detailCard && (
+        <ItemDetailModal
+          item={detailItem}
+          cardTitle={detailCard.title}
+          colors={getCardColors(detailCard)}
+          onClose={() => setDetailState(null)}
+          onSave={handleSaveItem}
+        />
+      )}
+    </>
   );
 }
