@@ -18,6 +18,7 @@ import NewItemsModal from './components/NewItemsModal';
 import MasterPrompt from './components/MasterPrompt';
 import SprintBriefingWidget from './components/SprintBriefingWidget';
 import DeployedMessagesWidget from './components/DeployedMessagesWidget';
+import MoreWidget from './components/MoreWidget';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -117,7 +118,7 @@ function FilterImageDropdown({ value, onChange }: { value: string; onChange: (v:
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'briefing'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'briefing' | 'more'>('dashboard');
   const [isMasterPromptOpen, setIsMasterPromptOpen] = useState(false);
   const [filter, setFilter] = useState('v1');
   const [burndownData, setBurndownData] = useState(defaultBurndownData);
@@ -274,6 +275,15 @@ export default function App() {
                 )}
               >
                 Sprint Briefing
+              </button>
+              <button
+                onClick={() => setActiveTab('more')}
+                className={cn(
+                  "px-4 flex items-center text-sm font-medium border-b-2 transition-colors",
+                  activeTab === 'more' ? "border-violet-500 text-slate-900" : "border-transparent text-slate-400 hover:text-slate-600"
+                )}
+              >
+                More
               </button>
             </nav>
           </div>
@@ -507,8 +517,10 @@ export default function App() {
 
 
           </>
-        ) : (
+        ) : activeTab === 'briefing' ? (
           <SprintBriefingWidget key={filter} issues={issues} activeSprintName={activeSprintName} filter={filter} />
+        ) : (
+          <MoreWidget />
         )}
 
       </main>
