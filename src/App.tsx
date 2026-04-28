@@ -65,10 +65,10 @@ const FILTER_OPTIONS = [
 ];
 
 const TEAM_BOARD_URLS: Record<string, string> = {
-  'v1':   'https://mako-tech.atlassian.net/jira/software/boards/91',
-  'mako': 'https://mako-tech.atlassian.net/jira/software/boards/85',
-  'N12':  'https://mako-tech.atlassian.net/jira/software/boards/88',
-  '12+':  'https://mako-tech.atlassian.net/jira/software/boards/87',
+  'v1':   'https://mako-tech.atlassian.net/jira/software/c/projects/KESHET/boards/91',
+  'mako': 'https://mako-tech.atlassian.net/jira/software/c/projects/KESHET/boards/85',
+  'N12':  'https://mako-tech.atlassian.net/jira/software/c/projects/KESHET/boards/88',
+  '12+':  'https://mako-tech.atlassian.net/jira/software/c/projects/KESHET/boards/87',
 };
 
 function FilterImageDropdown({ value, onChange }: { value: string; onChange: (v: string) => void }) {
