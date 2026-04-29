@@ -738,6 +738,47 @@ Rules:
     }
   });
 
+  // eazyBI Velocity Trend: Committed vs Completed - Issue count
+  app.get('/api/eazybi/velocity', async (req, res) => {
+    const { JIRA_DOMAIN, EAZYBI_ACCOUNT_ID, EAZYBI_API_TOKEN, EAZYBI_REPORT_ID_VELOCITY } = process.env;
+    const team = (req.query.team as string) || 'v1';
+
+    if (!JIRA_DOMAIN || !EAZYBI_ACCOUNT_ID || !EAZYBI_API_TOKEN || !EAZYBI_REPORT_ID_VELOCITY) {
+      return res.json({ data: [], configured: false });
+    }
+
+    const TEAM_NAMES: Record<string, string> = {
+      'v1':   process.env.EAZYBI_TEAM_V1    || 'v1',
+      'mako': process.env.EAZYBI_TEAM_MAKO  || 'mako',
+      'N12':  process.env.EAZYBI_TEAM_N12   || 'N12',
+      '12+':  process.env.EAZYBI_TEAM_12PLUS || '12+',
+    };
+
+    const teamName = TEAM_NAMES[team] || team;
+    const url = `https://${JIRA_DOMAIN}.atlassian.net/plugins/eazybi/api/1/accounts/${EAZYBI_ACCOUNT_ID}/export/report/${EAZYBI_REPORT_ID_VELOCITY}.json?token=${EAZYBI_API_TOKEN}&member[Teams][]=${encodeURIComponent(teamName)}`;
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`eazyBI API error: ${response.status}`);
+
+      const raw: any[][] = await response.json();
+      // Row 0 is headers; subsequent rows are [sprintName, committed, completed]
+      const data = raw.slice(1)
+        .filter(row => row.length >= 3)
+        .map(row => ({
+          sprint: String(row[0] ?? ''),
+          committed: Number(row[1]) || 0,
+          completed: Number(row[2]) || 0,
+        }))
+        .slice(-5); // last 5 sprints
+
+      res.json({ data, configured: true });
+    } catch (error: any) {
+      console.error('eazyBI velocity error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Briefing persistence (backed by SQLite via db.ts)
   app.get('/api/briefing/:team', (req, res) => {
     const data = getBriefing(req.params.team);

@@ -38,13 +38,6 @@ const defaultBurndownData = [
   { day: 'Day 10', ideal: 0, actual: null },
 ];
 
-const velocityData = [
-  { sprint: 'Sprint 41', completed: 85, committed: 90 },
-  { sprint: 'Sprint 42', completed: 92, committed: 95 },
-  { sprint: 'Sprint 43', completed: 78, committed: 85 },
-  { sprint: 'Sprint 44', completed: 95, committed: 90 },
-  { sprint: 'Sprint 45', completed: 88, committed: 95 },
-];
 
 const topCrashes = [
   { id: 'CR-892', title: 'NullReferenceException in AuthFlow', users: 142, trend: '+12%' },
@@ -129,6 +122,9 @@ export default function App() {
     setFilter(newFilter);
   };
   const [burndownData, setBurndownData] = useState(defaultBurndownData);
+  const [velocityData, setVelocityData] = useState<{ sprint: string; committed: number; completed: number }[]>([]);
+  const [velocityLoading, setVelocityLoading] = useState(false);
+  const [velocityConfigured, setVelocityConfigured] = useState(true);
   const [issues, setIssues] = useState<JiraIssue[]>([]);
   const [sprintGoalText, setSprintGoalText] = useState<string>('');
   const [sprintGoalIssues, setSprintGoalIssues] = useState<Record<string, { summary: string, url: string, fixVersion?: string, status?: string }>>({});
@@ -175,6 +171,19 @@ export default function App() {
   useEffect(() => {
     setIssues([]); // Clear stale data so SprintBriefing detects the filter change
     setInsightsTotalStuck(null);
+    setVelocityData([]);
+
+    // Fetch velocity trend from eazyBI (best-effort, non-blocking)
+    setVelocityLoading(true);
+    fetch(`/api/eazybi/velocity?team=${encodeURIComponent(filter)}`)
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(d => {
+        if (Array.isArray(d.data)) setVelocityData(d.data);
+        setVelocityConfigured(d.configured !== false);
+      })
+      .catch(() => setVelocityConfigured(false))
+      .finally(() => setVelocityLoading(false));
+
     async function fetchJiraData() {
       setJiraStatus(prev => ({ ...prev, loading: true }));
 
@@ -483,29 +492,45 @@ export default function App() {
             </div>
           </div>
 
-          {/* VELOCITY TREND (JIRA) */}
-          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-            <div className="mb-6">
-              <h2 className="text-base font-semibold text-slate-900">Velocity Trend</h2>
-              <p className="text-sm text-slate-500">Last 5 Sprints</p>
-            </div>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={velocityData} margin={{ top: 5, right: 0, bottom: 5, left: -20 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="sprint" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                  <Tooltip 
-                    cursor={{ fill: '#f1f5f9' }}
-                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                  <Bar dataKey="committed" name="Committed" fill="#cbd5e1" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                  <Bar dataKey="completed" name="Completed" fill="#4f46e5" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          {/* VELOCITY TREND (eazyBI) */}
+          {(() => {
+            const mockVelocityData = [
+              { sprint: 'Sprint 41', committed: 90, completed: 85 },
+              { sprint: 'Sprint 42', committed: 95, completed: 92 },
+              { sprint: 'Sprint 43', committed: 85, completed: 78 },
+              { sprint: 'Sprint 44', committed: 90, completed: 95 },
+              { sprint: 'Sprint 45', committed: 95, completed: 88 },
+            ];
+            const chartData = velocityData.length > 0 ? velocityData : mockVelocityData;
+            return (
+              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                <div className="mb-6">
+                  <h2 className="text-base font-semibold text-slate-900">Velocity Trend</h2>
+                  <p className="text-sm text-slate-500">Last 5 Sprints · Committed vs Completed</p>
+                </div>
+                <div className="h-64 w-full">
+                  {velocityLoading ? (
+                    <div className="h-full flex items-center justify-center text-slate-400 text-sm">Loading…</div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={chartData} margin={{ top: 5, right: 0, bottom: 5, left: -20 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis dataKey="sprint" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} dy={10} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                        <Tooltip
+                          cursor={{ fill: '#f1f5f9' }}
+                          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        />
+                        <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                        <Bar dataKey="committed" name="Committed" fill="#cbd5e1" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                        <Bar dataKey="completed" name="Completed" fill="#4f46e5" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
         </div>
 
