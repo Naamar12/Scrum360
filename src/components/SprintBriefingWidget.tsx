@@ -10,17 +10,7 @@ interface Props {
 }
 
 interface CardItem { id: number; text: string; issueType?: string; }
-let nextId = (() => {
-  try {
-    const raw = localStorage.getItem('sprint-briefing-v3');
-    if (raw) {
-      const data = JSON.parse(raw) as { cards?: Record<string, { items?: { id: number }[] }> };
-      const ids = Object.values(data.cards ?? {}).flatMap(c => (c.items ?? []).map(i => i.id));
-      if (ids.length) return Math.max(...ids) + 1;
-    }
-  } catch {}
-  return 1;
-})();
+let nextId = Date.now();
 function makeItem(text = '', issueType?: string): CardItem { return { id: nextId++, text, issueType }; }
 
 function issueCategory(type?: string): 'story' | 'task' | 'bug' | null {
@@ -97,8 +87,6 @@ function TypePicker({ current, onChange, isEmpty }: { current?: string; onChange
   );
 }
 
-const STORAGE_KEY_PREFIX = 'sprint-briefing-v4';
-function storageKey(filter: string) { return `${STORAGE_KEY_PREFIX}-${filter}`; }
 type CardStatus = 'empty' | 'draft' | 'ready';
 
 const CARD_COLORS = [
@@ -132,17 +120,55 @@ interface StoredData {
   cardOrder?: string[];
 }
 
-function loadStored(key: string): StoredData {
+async function apiBriefingLoad(team: string): Promise<StoredData> {
   try {
-    const raw = localStorage.getItem(key);
-    if (raw) return JSON.parse(raw);
+    const res = await fetch(`/api/briefing/${encodeURIComponent(team)}`);
+    if (res.ok) return res.json();
   } catch {}
   return { cards: {}, extraCards: [], hiddenDevs: [] };
 }
 
-function saveStored(key: string, data: StoredData) {
-  try { localStorage.setItem(key, JSON.stringify(data)); } catch {}
+async function apiBriefingSave(team: string, data: StoredData): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/briefing/${encodeURIComponent(team)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return res.ok;
+  } catch { return false; }
 }
+
+async function apiBriefingArchive(team: string, archiveData: object): Promise<void> {
+  try {
+    await fetch(`/api/briefing/${encodeURIComponent(team)}/archive`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(archiveData),
+    });
+  } catch {}
+}
+
+// One-time migration: copy existing localStorage data into SQLite on first run.
+// Only marks itself complete when every save succeeds — so a server restart
+// mid-migration won't silently lose data (retries on next page load).
+const migrationDonePromise = (async () => {
+  const MIGRATED_KEY = 'sprint-briefing-db-migrated-v1';
+  try {
+    if (localStorage.getItem(MIGRATED_KEY)) return;
+    const teams = ['v1', 'mako', 'N12', '12+', 'default'];
+    let allOk = true;
+    for (const team of teams) {
+      const raw = localStorage.getItem(`sprint-briefing-v4-${team}`);
+      if (!raw) continue;
+      try {
+        const ok = await apiBriefingSave(team, JSON.parse(raw));
+        if (!ok) allOk = false;
+      } catch { allOk = false; }
+    }
+    if (allOk) localStorage.setItem(MIGRATED_KEY, '1');
+  } catch {}
+})();
 
 // Strip legacy [KESHET-xxx] prefixes from items loaded from old storage
 function migrateItems(items: StoredCard['items']): StoredCard['items'] {
@@ -1194,52 +1220,81 @@ export default function SprintBriefingWidget({ issues, activeSprintName, filter 
     [issues],
   );
 
-  const filterStorageKey = useMemo(() => storageKey(filter ?? 'default'), [filter]);
-  const stored = useMemo(() => {
-    const s = loadStored(filterStorageKey);
-    // migrate old [KEY] prefixes
-    Object.values(s.cards).forEach(c => { c.items = migrateItems(c.items); });
-    return s;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const [cardData, setCardData] = useState<Record<string, StoredCard>>(() => {
-    const initial = { ...stored.cards };
-    for (const dev of Object.keys(issuesByDev)) {
-      const devIssues = issuesByDev[dev] ?? [];
-      const freshItems = devIssues.filter(i => issueCategory(i.type) !== null).map(i => makeItem(i.summary, i.type));
-      // When Jira data is already loaded on mount, always use it — stored data may be
-      // from a previous filter or a stale cache write.
-      initial[dev] = {
-        title: initial[dev]?.title ?? dev,
-        items: freshItems,
-        generatedContent: initial[dev]?.generatedContent,
-        bgColor: initial[dev]?.bgColor,
-      };
-    }
-    return initial;
-  });
-  const [extraCards, setExtraCards] = useState<string[]>(stored.extraCards);
-  const [hiddenDevs, setHiddenDevs] = useState<Set<string>>(new Set(stored.hiddenDevs));
-  const [cardOrder, setCardOrder] = useState<string[]>(stored.cardOrder ?? []);
+  const currentTeam = filter ?? 'default';
+  const [cardData, setCardData] = useState<Record<string, StoredCard>>({});
+  const [extraCards, setExtraCards] = useState<string[]>([]);
+  const [hiddenDevs, setHiddenDevs] = useState<Set<string>>(new Set());
+  const [cardOrder, setCardOrder] = useState<string[]>([]);
 
   // Detect when issuesByDev transitions from empty→non-empty after a filter change.
   // App.tsx clears issues[] on every filter change, which makes issuesByDev go empty.
   // When new data arrives and issuesByDev becomes non-empty again, we force-repopulate.
-  // On the very first load we skip force-repopulate to respect saved localStorage data.
+  // On the very first load we skip force-repopulate to respect saved DB data.
   const hasEverLoadedRef = useRef(false);
+  // dbLoaded is STATE (not a ref) so that the auto-populate effect re-runs when the
+  // async DB fetch finishes. This prevents a race where Jira data arrives before the
+  // DB fetch completes and auto-populate fires before we know what's already saved.
+  const [dbLoaded, setDbLoaded] = useState(false);
+  // boardKey is bumped after forceRepopulate so DraggableCard (which stores initialItems
+  // in local useState) remounts and picks up the new Jira items from cardData.
+  const [boardKey, setBoardKey] = useState(0);
   const wasIssuesByDevEmptyRef = useRef(true);
-  const filterStorageKeyRef = useRef(filterStorageKey);
-  useEffect(() => { filterStorageKeyRef.current = filterStorageKey; }, [filterStorageKey]);
+  const teamRef = useRef(currentTeam);
+  useEffect(() => { teamRef.current = currentTeam; }, [currentTeam]);
+  const storedCardsRef = useRef<Record<string, StoredCard>>({});
 
-  // Auto-populate cards whenever Jira issues load or the filter changes.
+  // Load briefing from SQLite (via API) whenever the team changes
   useEffect(() => {
+    hasEverLoadedRef.current = false;
+    setDbLoaded(false);
+    wasIssuesByDevEmptyRef.current = true;
+    let cancelled = false;
+    (async () => {
+      await migrationDonePromise;
+      const data = await apiBriefingLoad(currentTeam);
+      if (cancelled) return;
+      Object.values(data.cards ?? {}).forEach(c => { c.items = migrateItems(c.items); });
+      storedCardsRef.current = data.cards;
+      setExtraCards(data.extraCards);
+      setHiddenDevs(new Set(data.hiddenDevs));
+      setCardOrder(data.cardOrder ?? []);
+      setCardData(prev => {
+        const updated = { ...prev };
+        for (const [key, storedCard] of Object.entries(data.cards)) {
+          if (updated[key]) {
+            const mergedItems = updated[key].items?.length ? updated[key].items : storedCard.items;
+            updated[key] = {
+              ...updated[key],
+              bgColor: storedCard.bgColor,
+              generatedContent: storedCard.generatedContent,
+              isReady: storedCard.isReady,
+              items: mergedItems,
+            };
+          } else {
+            updated[key] = storedCard;
+          }
+        }
+        return updated;
+      });
+      // Signal DB load complete — triggers auto-populate effect if Jira data is already ready
+      setDbLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, [currentTeam]);
+
+  // Auto-populate cards whenever Jira issues load, the filter changes, or DB finishes loading.
+  // We gate on dbLoaded so we never overwrite DB data with a stale/empty snapshot:
+  // if Jira data arrives before the DB fetch completes we simply wait; once setDbLoaded(true)
+  // fires the effect re-runs with both Jira data and DB data available.
+  useEffect(() => {
+    if (!dbLoaded) return;
     const isEmpty = Object.keys(issuesByDev).length === 0;
     const isFirstLoad = !hasEverLoadedRef.current;
     const comingFromEmpty = wasIssuesByDevEmptyRef.current && !isEmpty && hasEverLoadedRef.current;
     wasIssuesByDevEmptyRef.current = isEmpty;
     if (isEmpty) return;
     // forceRepopulate on: filter change (comingFromEmpty) OR first Jira load (isFirstLoad).
-    // First-load repopulate ensures stale localStorage data is always replaced by current Jira data.
+    // First-load repopulate ensures stale DB data is always replaced by current Jira data.
     const forceRepopulate = comingFromEmpty || isFirstLoad;
     if (isFirstLoad) hasEverLoadedRef.current = true;
 
@@ -1257,10 +1312,10 @@ export default function SprintBriefingWidget({ issues, activeSprintName, filter 
         if (forceRepopulate || !updated[dev] || !updated[dev].items?.some(i => i.text.trim())) {
           // Populate fresh (filter changed, or card is empty)
           updated[dev] = {
-            title: updated[dev]?.title ?? dev,
+            title: updated[dev]?.title ?? storedCardsRef.current[dev]?.title ?? dev,
             items: sortIssues(devIssues),
-            generatedContent: updated[dev]?.generatedContent,
-            bgColor: updated[dev]?.bgColor,
+            generatedContent: updated[dev]?.generatedContent ?? storedCardsRef.current[dev]?.generatedContent,
+            bgColor: updated[dev]?.bgColor ?? storedCardsRef.current[dev]?.bgColor,
           };
           changed = true;
         } else {
@@ -1279,11 +1334,13 @@ export default function SprintBriefingWidget({ issues, activeSprintName, filter 
       }
       return changed ? updated : prev;
     });
-  }, [issuesByDev]);
+    // When forceRepopulate, DraggableCard is already mounted (from DB load) with stale
+    // initialItems. Bumping boardKey forces it to remount and pick up the new items.
+    if (forceRepopulate) setBoardKey(k => k + 1);
+  }, [issuesByDev, dbLoaded]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [archiveModalOpen, setArchiveModalOpen] = useState(false);
-  const [boardKey, setBoardKey] = useState(0);
   const cardDragSrc = useRef<string | null>(null);
   const cardFromGrip = useRef(false);
   const [cardOverKey, setCardOverKey] = useState<string | null>(null);
@@ -1291,11 +1348,14 @@ export default function SprintBriefingWidget({ issues, activeSprintName, filter 
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    // Don't persist until at least one Jira load has completed — avoids writing stale
-    // localStorage data back to storage before fresh Jira data arrives.
-    if (!hasEverLoadedRef.current) return;
-    saveStored(filterStorageKeyRef.current, { cards: cardData, extraCards, hiddenDevs: [...hiddenDevs], cardOrder });
-  }, [cardData, extraCards, hiddenDevs, cardOrder]);
+    // Don't persist until DB has loaded for the current team —
+    // prevents overwriting saved data with empty state before the fetch completes.
+    if (!dbLoaded) return;
+    const timer = setTimeout(() => {
+      apiBriefingSave(teamRef.current, { cards: cardData, extraCards, hiddenDevs: [...hiddenDevs], cardOrder });
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [cardData, extraCards, hiddenDevs, cardOrder, dbLoaded]);
 
   function updateCard(key: string, patch: Partial<StoredCard>) {
     setCardData(prev => {
@@ -1352,14 +1412,11 @@ export default function SprintBriefingWidget({ issues, activeSprintName, filter 
   }
 
   function archiveAndReset() {
-    try {
-      const archiveKey = `sprint-briefing-archive-${Date.now()}`;
-      localStorage.setItem(archiveKey, JSON.stringify({
-        cards: cardData, extraCards, hiddenDevs: [...hiddenDevs], cardOrder,
-        archivedAt: new Date().toISOString(),
-        sprintName: activeSprintName,
-      }));
-    } catch {}
+    apiBriefingArchive(teamRef.current, {
+      cards: cardData, extraCards, hiddenDevs: [...hiddenDevs], cardOrder,
+      archivedAt: new Date().toISOString(),
+      sprintName: activeSprintName,
+    });
     // Re-populate from current Jira active sprint, sorted Story→Bug→Task
     const typeOrder: Record<string, number> = { story: 0, bug: 1, task: 2 };
     const fresh: Record<string, StoredCard> = {};
@@ -1532,7 +1589,7 @@ export default function SprintBriefingWidget({ issues, activeSprintName, filter 
             </div>
 
             <p className="text-[#777] text-xs leading-relaxed">
-              הנתונים יישמרו בארכיון המקומי ולא יימחקו. ניתן לשחזר אותם ב-localStorage תחת המפתח <span className="text-[#aaa] font-mono">sprint-briefing-archive-*</span>.
+              הנתונים יישמרו בארכיון המקומי (SQLite) ולא יימחקו.
             </p>
 
             <div className="flex gap-2 justify-end">

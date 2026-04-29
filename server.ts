@@ -4,6 +4,7 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from 'url';
 import Anthropic from '@anthropic-ai/sdk';
+import { getBriefing, saveBriefing, archiveBriefing, getMoreWidget, saveMoreWidget } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -735,6 +736,39 @@ Rules:
       console.error('Claude sprint-briefing error:', error);
       res.status(500).json({ error: error.message || 'Failed to generate briefing' });
     }
+  });
+
+  // Briefing persistence (backed by SQLite via db.ts)
+  app.get('/api/briefing/:team', (req, res) => {
+    const data = getBriefing(req.params.team);
+    res.json(data ?? { cards: {}, extraCards: [], hiddenDevs: [] });
+  });
+
+  app.put('/api/briefing/:team', (req, res) => {
+    const data = req.body;
+    if (!data || typeof data !== 'object') return res.status(400).json({ error: 'Invalid body' });
+    saveBriefing(req.params.team, data);
+    res.json({ ok: true });
+  });
+
+  app.post('/api/briefing/:team/archive', (req, res) => {
+    const data = req.body;
+    if (!data || typeof data !== 'object') return res.status(400).json({ error: 'Invalid body' });
+    archiveBriefing(req.params.team, data);
+    res.json({ ok: true });
+  });
+
+  // More widget persistence (backed by SQLite via db.ts)
+  app.get('/api/more-widget/:id', (req, res) => {
+    const data = getMoreWidget(req.params.id);
+    res.json(data ?? null);
+  });
+
+  app.put('/api/more-widget/:id', (req, res) => {
+    const data = req.body;
+    if (!data || typeof data !== 'object') return res.status(400).json({ error: 'Invalid body' });
+    saveMoreWidget(req.params.id, data);
+    res.json({ ok: true });
   });
 
   // Vite middleware for development

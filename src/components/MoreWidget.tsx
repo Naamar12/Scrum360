@@ -48,6 +48,39 @@ const INITIAL_CARDS: CardData[] = [
 
 const COLLAPSE_THRESHOLD = 2;
 const STORAGE_KEY = 'more-widget-cards';
+const MORE_WIDGET_ID = 'default';
+
+async function apiMoreWidgetLoad(): Promise<CardData[] | null> {
+  try {
+    const res = await fetch(`/api/more-widget/${MORE_WIDGET_ID}`);
+    if (res.ok) return res.json();
+  } catch {}
+  return null;
+}
+
+async function apiMoreWidgetSave(cards: CardData[]): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/more-widget/${MORE_WIDGET_ID}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cards),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+// One-time migration: copy localStorage data into SQLite on first run.
+// Only marks itself done when the save succeeds.
+const moreWidgetMigrationDone = (async () => {
+  const MIGRATED_KEY = 'more-widget-db-migrated-v1';
+  try {
+    if (localStorage.getItem(MIGRATED_KEY)) return;
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) { localStorage.setItem(MIGRATED_KEY, '1'); return; }
+    const ok = await apiMoreWidgetSave(JSON.parse(raw));
+    if (ok) localStorage.setItem(MIGRATED_KEY, '1');
+  } catch {}
+})();
 
 // ─── ItemDetailModal ──────────────────────────────────────────────────────────
 
@@ -607,28 +640,37 @@ function ChecklistCard({ card, onToggle, onAdd, onDelete, onEdit, onOpenDetail, 
 
 // ─── MoreWidget ───────────────────────────────────────────────────────────────
 
-function loadCards(): CardData[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return INITIAL_CARDS;
-    const parsed: CardData[] = JSON.parse(raw);
-    const initialMerged = INITIAL_CARDS.map(def => parsed.find(c => c.id === def.id) ?? def);
-    const initialIds = new Set(INITIAL_CARDS.map(c => c.id));
-    const customCards = parsed.filter(c => !initialIds.has(c.id));
-    return [...initialMerged, ...customCards];
-  } catch {
-    return INITIAL_CARDS;
-  }
-}
-
 export default function MoreWidget() {
-  const [cards, setCards] = useState<CardData[]>(loadCards);
+  const [cards, setCards] = useState<CardData[]>(INITIAL_CARDS);
+  const [dbLoaded, setDbLoaded] = useState(false);
   const [detailState, setDetailState] = useState<{ cardId: string; itemId: string } | null>(null);
   const [showAddCard, setShowAddCard] = useState(false);
 
+  // Load from SQLite on mount
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
-  }, [cards]);
+    let cancelled = false;
+    (async () => {
+      await moreWidgetMigrationDone;
+      const data = await apiMoreWidgetLoad();
+      if (cancelled) return;
+      if (data && Array.isArray(data)) {
+        // Merge: keep initial card definitions for known ids, append custom cards
+        const initialMerged = INITIAL_CARDS.map(def => data.find((c: CardData) => c.id === def.id) ?? def);
+        const initialIds = new Set(INITIAL_CARDS.map(c => c.id));
+        const customCards = data.filter((c: CardData) => !initialIds.has(c.id));
+        setCards([...initialMerged, ...customCards]);
+      }
+      setDbLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Debounced save to SQLite (only after initial load)
+  useEffect(() => {
+    if (!dbLoaded) return;
+    const timer = setTimeout(() => { apiMoreWidgetSave(cards); }, 1000);
+    return () => clearTimeout(timer);
+  }, [cards, dbLoaded]);
 
   const handleToggle = useCallback((cardId: string, itemId: string) => {
     setCards(prev => prev.map(card => {
