@@ -202,7 +202,7 @@ export default function ItemDistributionWidget({ issues, nextSprintName }: ItemD
               <Bookmark className="w-3.5 h-3.5 text-green-500 shrink-0 fill-green-500" />
             )}
             {issue.type.toLowerCase() === 'task' && (
-              <CheckSquare className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+              <CheckSquare className="w-3.5 h-3.5 text-blue-500 shrink-0" />
             )}
             <span>{issue.key}</span>
           </div>

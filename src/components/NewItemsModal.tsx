@@ -8,6 +8,15 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+function getTypeIcon(type: string) {
+  const t = type.toLowerCase();
+  if (t.includes('bug') && t.includes('sub')) return <Bug className="w-3.5 h-3.5 text-blue-500 shrink-0" />;
+  if (t.includes('bug')) return <Bug className="w-3.5 h-3.5 text-red-500 shrink-0" />;
+  if (t.includes('story')) return <Bookmark className="w-3.5 h-3.5 text-green-500 fill-green-500 shrink-0" />;
+  if (t.includes('task')) return <CheckSquare className="w-3.5 h-3.5 text-blue-500 shrink-0" />;
+  return null;
+}
+
 interface NewItemsModalProps {
   issues: JiraIssue[];
   onClose: () => void;
@@ -73,8 +82,11 @@ export default function NewItemsModal({ issues, onClose }: NewItemsModalProps) {
             <tbody className="divide-y divide-slate-200">
               {data.map(issue => (
                 <tr key={issue.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">
-                    {issue.key}
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <div className="flex items-center gap-1.5 font-mono text-xs text-slate-500">
+                      {getTypeIcon(issue.type)}
+                      {issue.key}
+                    </div>
                   </td>
                   <td className="px-4 py-3 max-w-0 w-full">
                     <div className="flex items-center gap-1.5 min-w-0">
@@ -145,7 +157,7 @@ export default function NewItemsModal({ issues, onClose }: NewItemsModalProps) {
           ) : (
             <div className="space-y-6">
               {renderTable("Stories", groupedItems.stories, <Bookmark className="w-5 h-5 text-green-500 fill-green-500" />)}
-              {renderTable("Tasks", groupedItems.tasks, <CheckSquare className="w-5 h-5 text-purple-500" />)}
+              {renderTable("Tasks", groupedItems.tasks, <CheckSquare className="w-5 h-5 text-blue-500" />)}
               {renderTable("Bugs", groupedItems.bugs, <Bug className="w-5 h-5 text-red-500" />)}
               {renderTable("Sub-Bugs", groupedItems.subBugs, <Bug className="w-5 h-5 text-blue-500" />)}
             </div>

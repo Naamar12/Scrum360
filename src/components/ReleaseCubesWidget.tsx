@@ -347,7 +347,7 @@ export default function ReleaseCubesWidget({ issues, deployedMessages, highlight
                                 ) : issue.type.toLowerCase().includes('story') ? (
                                   <Bookmark className="w-3.5 h-3.5 text-green-500 fill-green-500" />
                                 ) : issue.type.toLowerCase() === 'task' ? (
-                                  <CheckSquare className="w-3.5 h-3.5 text-purple-500" />
+                                  <CheckSquare className="w-3.5 h-3.5 text-blue-500" />
                                 ) : null}
                               </div>
                               <span className="font-mono text-xs text-slate-500 mt-0.5 shrink-0">{issue.key}</span>

@@ -1,11 +1,20 @@
 import React, { useState, useMemo } from 'react';
-import { X, ExternalLink, Clock, ChevronDown, ChevronRight, User } from 'lucide-react';
+import { X, ExternalLink, Clock, ChevronDown, ChevronRight, User, Bug, Bookmark, CheckSquare } from 'lucide-react';
 import { JiraIssue } from './ItemDistributionWidget';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+function getTypeIcon(type: string) {
+  const t = type.toLowerCase();
+  if (t.includes('bug') && t.includes('sub')) return <Bug className="w-3 h-3 text-blue-500 shrink-0" />;
+  if (t.includes('bug')) return <Bug className="w-3 h-3 text-red-500 shrink-0" />;
+  if (t.includes('story')) return <Bookmark className="w-3 h-3 text-green-500 fill-green-500 shrink-0" />;
+  if (t.includes('task')) return <CheckSquare className="w-3 h-3 text-blue-500 shrink-0" />;
+  return null;
 }
 
 const isCreatedToday = (dateString?: string) => {
@@ -124,7 +133,10 @@ function ParentStoryRow({ parentKey, parentGroup }: { parentKey: string, parentG
                         rel="noopener noreferrer"
                         className="group flex flex-col"
                       >
-                        <span className="text-xs font-mono text-slate-500 group-hover:text-rose-600 transition-colors">{task.key}</span>
+                        <span className="text-xs font-mono text-slate-500 group-hover:text-rose-600 transition-colors flex items-center gap-1">
+                          {getTypeIcon(task.type)}
+                          {task.key}
+                        </span>
                         <span className="text-sm font-medium text-slate-900 group-hover:text-rose-600 transition-colors flex items-center gap-1.5 mt-0.5">
                           {isCreatedToday(task.createdDate) && (
                             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">New</span>

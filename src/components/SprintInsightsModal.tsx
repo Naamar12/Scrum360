@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, ExternalLink, Clock, AlertCircle, Loader2 } from 'lucide-react';
+import { X, ExternalLink, Clock, AlertCircle, Loader2, Bug, Bookmark, CheckSquare } from 'lucide-react';
 
 interface StuckItem {
   key: string;
@@ -25,6 +25,15 @@ interface InsightsData {
 interface SprintInsightsModalProps {
   team: string;
   onClose: () => void;
+}
+
+function getTypeIcon(type: string) {
+  const t = type.toLowerCase();
+  if (t.includes('bug') && t.includes('sub')) return <Bug className="w-3.5 h-3.5 text-blue-500 shrink-0" />;
+  if (t.includes('bug')) return <Bug className="w-3.5 h-3.5 text-red-500 shrink-0" />;
+  if (t.includes('story')) return <Bookmark className="w-3.5 h-3.5 text-green-500 fill-green-500 shrink-0" />;
+  if (t.includes('task')) return <CheckSquare className="w-3.5 h-3.5 text-blue-500 shrink-0" />;
+  return null;
 }
 
 function formatDuration(hours: number): string {
@@ -165,8 +174,9 @@ export default function SprintInsightsModal({ team, onClose }: SprintInsightsMod
                             href={item.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="group flex items-baseline gap-2"
+                            className="group flex items-center gap-2"
                           >
+                            {getTypeIcon(item.type)}
                             <span className="text-xs font-mono font-semibold text-indigo-600 group-hover:underline shrink-0">
                               {item.key}
                             </span>
