@@ -812,6 +812,60 @@ Rules:
     res.json({ ok: true });
   });
 
+  // Slack: list channels the bot has joined
+  app.get('/api/slack/channels', async (req, res) => {
+    const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
+    if (!SLACK_BOT_TOKEN) return res.status(503).json({ error: 'SLACK_BOT_TOKEN not configured' });
+
+    try {
+      const channels: { id: string; name: string }[] = [];
+      let cursor: string | undefined;
+
+      do {
+        const params = new URLSearchParams({ exclude_archived: 'true', types: 'public_channel,private_channel', limit: '200' });
+        if (cursor) params.set('cursor', cursor);
+
+        const response = await fetch(`https://slack.com/api/conversations.list?${params}`, {
+          headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+        });
+        const data = await response.json() as any;
+        if (!data.ok) throw new Error(data.error || 'Slack API error');
+
+        for (const ch of data.channels ?? []) {
+          if (ch.is_member) channels.push({ id: ch.id, name: ch.name });
+        }
+        cursor = data.response_metadata?.next_cursor || undefined;
+      } while (cursor);
+
+      channels.sort((a, b) => a.name.localeCompare(b.name));
+      res.json(channels);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Slack: post a message to a channel
+  app.post('/api/slack/post-message', async (req, res) => {
+    const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
+    if (!SLACK_BOT_TOKEN) return res.status(503).json({ error: 'SLACK_BOT_TOKEN not configured' });
+
+    const { channel, text } = req.body;
+    if (!channel || !text) return res.status(400).json({ error: 'channel and text are required' });
+
+    try {
+      const response = await fetch('https://slack.com/api/chat.postMessage', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel, text }),
+      });
+      const data = await response.json() as any;
+      if (!data.ok) throw new Error(data.error || 'Slack API error');
+      res.json({ ok: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Retro persistence (backed by SQLite via db.ts)
   app.get('/api/retro/:team', (req, res) => {
     const data = getRetro(req.params.team);

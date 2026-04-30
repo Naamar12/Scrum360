@@ -316,15 +316,6 @@ export default function App() {
                 Call Center
               </button>
               <button
-                onClick={() => setActiveTab('more')}
-                className={cn(
-                  "px-4 flex items-center text-sm font-medium border-b-2 transition-colors",
-                  activeTab === 'more' ? "border-violet-500 text-slate-900" : "border-transparent text-slate-400 hover:text-slate-600"
-                )}
-              >
-                More
-              </button>
-              <button
                 onClick={() => setActiveTab('retro')}
                 className={cn(
                   "px-4 flex items-center text-sm font-medium border-b-2 transition-colors",
@@ -332,6 +323,15 @@ export default function App() {
                 )}
               >
                 Retro
+              </button>
+              <button
+                onClick={() => setActiveTab('more')}
+                className={cn(
+                  "px-4 flex items-center text-sm font-medium border-b-2 transition-colors",
+                  activeTab === 'more' ? "border-violet-500 text-slate-900" : "border-transparent text-slate-400 hover:text-slate-600"
+                )}
+              >
+                More
               </button>
             </nav>
           </div>
@@ -592,7 +592,7 @@ export default function App() {
         ) : activeTab === 'callcenter' ? (
           <CallCenterView />
         ) : activeTab === 'retro' ? (
-          <RetroWidget filter={filter} />
+          <RetroWidget filter={filter} activeSprintName={activeSprintName} />
         ) : (
           <MoreWidget />
         )}
