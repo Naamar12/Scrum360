@@ -313,7 +313,7 @@ export default function RetroWidget({ filter = 'v1', activeSprintName }: Props) 
   return (
     <div className="space-y-5">
       {/* Header bar */}
-      <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 flex items-center justify-between gap-4">
+      <div className="bg-white rounded-xl border border-slate-200 px-5 py-5 flex items-center justify-between gap-4 shadow-sm">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'linear-gradient(135deg, #ede9fe, #ddd6fe)' }}>
             <img src="/retro_logo.png" alt="Retro" className="w-5 h-5 object-contain" style={{ filter: 'invert(35%) sepia(80%) saturate(800%) hue-rotate(230deg)' }} />
@@ -333,7 +333,7 @@ export default function RetroWidget({ filter = 'v1', activeSprintName }: Props) 
                 />
               ) : (
                 <button
-                  onClick={() => { setDraftSprintName(data.sprintName); setEditingSprintName(true); }}
+                  onClick={() => { setDraftSprintName(data.sprintName || activeSprintName || ''); setEditingSprintName(true); }}
                   className="text-sm text-slate-400 hover:text-violet-600 transition-colors px-1.5 py-0.5 rounded hover:bg-violet-50"
                 >
                   {data.sprintName || activeSprintName || '+ Add sprint name'}
@@ -374,7 +374,7 @@ export default function RetroWidget({ filter = 'v1', activeSprintName }: Props) 
             style={
               sendStatus === 'success' ? { background: '#d1fae5', borderColor: '#6ee7b7', color: '#065f46' } :
               sendStatus === 'error'   ? { background: '#fee2e2', borderColor: '#fca5a5', color: '#991b1b' } :
-                                         { background: '#f8f9fc', borderColor: '#e2e8f0', color: '#475569' }
+                                         { background: '#7c3aed', borderColor: '#7c3aed', color: '#ffffff' }
             }
             title="Send to Slack"
           >
@@ -395,20 +395,18 @@ export default function RetroWidget({ filter = 'v1', activeSprintName }: Props) 
           return (
             <div
               key={col.key}
-              className="rounded-xl border overflow-hidden flex flex-col"
-              style={{ borderColor: col.border, background: col.bg }}
+              className="rounded-xl border border-slate-200 overflow-hidden flex flex-col bg-white shadow-sm"
             >
+              {/* Colored top accent bar */}
+              <div style={{ height: 4, background: col.accent }} />
               {/* Column header */}
-              <div
-                className="px-4 py-3 flex items-center justify-between"
-                style={{ background: col.headerGradient }}
-              >
+              <div className="px-4 py-3.5 flex items-center justify-between bg-white">
                 <div className="flex items-center gap-2">
-                  <span style={{ color: col.headerText }}>{col.icon}</span>
-                  <span className="text-sm font-semibold" style={{ color: col.headerText }}>{col.label}</span>
+                  <span style={{ color: col.accent }}>{col.icon}</span>
+                  <span className="text-base font-bold" style={{ color: col.headerText }}>{col.label}</span>
                   {items.length > 0 && (
                     <span
-                      className="text-xs font-medium px-1.5 py-0.5 rounded-full"
+                      className="text-xs font-medium px-2.5 py-0.5 rounded-full"
                       style={{ background: col.badgeBg, color: col.badgeText, border: `1px solid ${col.border}` }}
                     >
                       {items.length}
@@ -438,11 +436,11 @@ export default function RetroWidget({ filter = 'v1', activeSprintName }: Props) 
               </div>
 
               {/* Description */}
-              <p className="text-xs px-4 pt-2.5 pb-1" style={{ color: col.headerText, opacity: 0.7 }}>{col.description}</p>
+              <p className="text-xs px-4 pt-1.5 pb-2 text-slate-400">{col.description}</p>
 
               {/* Add input */}
               {isAdding && (
-                <div className="px-3 pt-1 pb-2">
+                <div className="px-4 pt-1 pb-2">
                   <div className="flex gap-2">
                     <input
                       ref={addInputRef}
@@ -468,7 +466,7 @@ export default function RetroWidget({ filter = 'v1', activeSprintName }: Props) 
               )}
 
               {/* Items */}
-              <div className="flex-1 px-3 pb-3 mt-1 flex flex-col gap-2">
+              <div className="flex-1 px-4 pb-4 mt-1 flex flex-col gap-2">
                 {items.length === 0 && !isAdding && (
                   <div
                     className="rounded-lg border-2 border-dashed transition-colors"
@@ -509,14 +507,14 @@ export default function RetroWidget({ filter = 'v1', activeSprintName }: Props) 
                         onDrop={e => handleDrop(e, col.key, item.id)}
                         onDragEnd={handleDragEnd}
                         onDragLeave={() => setDragOver(null)}
-                        className="flex items-start gap-2 bg-white rounded-lg px-3 py-2.5 border group transition-opacity"
+                        className="flex items-start gap-2 bg-white rounded-xl px-3 py-2.5 border group transition-all hover:shadow-sm"
                         style={{
                           borderColor: col.border,
                           opacity: isDragging ? 0.4 : 1,
                           cursor: 'grab',
                         }}
                       >
-                        <GripVertical className="w-3.5 h-3.5 text-slate-300 mt-0.5 shrink-0 group-hover:text-slate-400 transition-colors" />
+                        <GripVertical className="w-3.5 h-3.5 mt-0.5 shrink-0 transition-colors text-transparent group-hover:text-slate-400" />
 
                         {isEditing ? (
                           <input
