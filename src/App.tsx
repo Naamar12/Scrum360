@@ -23,6 +23,7 @@ import VersionQualityView from './components/VersionQualityView';
 import AutomationResultsView from './components/AutomationResultsView';
 import RetroWidget from './components/RetroWidget';
 import CrashlyticsModal from './components/CrashlyticsModal';
+import CallCenterView from './components/CallCenterView';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -115,7 +116,7 @@ function FilterImageDropdown({ value, onChange }: { value: string; onChange: (v:
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'briefing' | 'versions' | 'automation' | 'more' | 'retro'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'briefing' | 'versions' | 'automation' | 'callcenter' | 'more' | 'retro'>('dashboard');
   const [isMasterPromptOpen, setIsMasterPromptOpen] = useState(false);
   const [filter, setFilter] = useState('v1');
   const handleFilterChange = (newFilter: string) => {
@@ -304,6 +305,15 @@ export default function App() {
                 )}
               >
                 Automation
+              </button>
+              <button
+                onClick={() => setActiveTab('callcenter')}
+                className={cn(
+                  "px-4 flex items-center text-sm font-medium border-b-2 transition-colors",
+                  activeTab === 'callcenter' ? "border-violet-500 text-slate-900" : "border-transparent text-slate-400 hover:text-slate-600"
+                )}
+              >
+                Call Center
               </button>
               <button
                 onClick={() => setActiveTab('more')}
@@ -579,6 +589,8 @@ export default function App() {
           <VersionQualityView />
         ) : activeTab === 'automation' ? (
           <AutomationResultsView />
+        ) : activeTab === 'callcenter' ? (
+          <CallCenterView />
         ) : activeTab === 'retro' ? (
           <RetroWidget filter={filter} />
         ) : (
