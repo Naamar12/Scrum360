@@ -30,6 +30,11 @@ db.exec(`
     data TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS retro (
+    team TEXT PRIMARY KEY,
+    data TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
 `);
 
 export interface StoredCard {
@@ -87,6 +92,19 @@ export function getMoreWidget(id: string): unknown | null {
 export function saveMoreWidget(id: string, data: unknown): void {
   db.prepare('INSERT OR REPLACE INTO more_widget (id, data, updated_at) VALUES (?, ?, ?)').run(
     id,
+    JSON.stringify(data),
+    new Date().toISOString(),
+  );
+}
+
+export function getRetro(team: string): unknown | null {
+  const row = db.prepare('SELECT data FROM retro WHERE team = ?').get(team) as { data: string } | undefined;
+  return row ? JSON.parse(row.data) : null;
+}
+
+export function saveRetro(team: string, data: unknown): void {
+  db.prepare('INSERT OR REPLACE INTO retro (team, data, updated_at) VALUES (?, ?, ?)').run(
+    team,
     JSON.stringify(data),
     new Date().toISOString(),
   );

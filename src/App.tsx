@@ -20,6 +20,7 @@ import SprintBriefingWidget from './components/SprintBriefingWidget';
 import DeployedMessagesWidget from './components/DeployedMessagesWidget';
 import MoreWidget from './components/MoreWidget';
 import VersionQualityView from './components/VersionQualityView';
+import RetroWidget from './components/RetroWidget';
 import CrashlyticsModal from './components/CrashlyticsModal';
 
 function cn(...inputs: ClassValue[]) {
@@ -113,7 +114,7 @@ function FilterImageDropdown({ value, onChange }: { value: string; onChange: (v:
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'briefing' | 'versions' | 'more'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'briefing' | 'versions' | 'more' | 'retro'>('dashboard');
   const [isMasterPromptOpen, setIsMasterPromptOpen] = useState(false);
   const [filter, setFilter] = useState('v1');
   const handleFilterChange = (newFilter: string) => {
@@ -302,6 +303,15 @@ export default function App() {
                 )}
               >
                 More
+              </button>
+              <button
+                onClick={() => setActiveTab('retro')}
+                className={cn(
+                  "px-4 flex items-center text-sm font-medium border-b-2 transition-colors",
+                  activeTab === 'retro' ? "border-violet-500 text-slate-900" : "border-transparent text-slate-400 hover:text-slate-600"
+                )}
+              >
+                Retro
               </button>
             </nav>
           </div>
@@ -557,6 +567,8 @@ export default function App() {
           <SprintBriefingWidget key={filter} issues={issues} activeSprintName={activeSprintName} filter={filter} />
         ) : activeTab === 'versions' ? (
           <VersionQualityView />
+        ) : activeTab === 'retro' ? (
+          <RetroWidget filter={filter} />
         ) : (
           <MoreWidget />
         )}
