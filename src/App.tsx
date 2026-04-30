@@ -20,6 +20,7 @@ import SprintBriefingWidget from './components/SprintBriefingWidget';
 import DeployedMessagesWidget from './components/DeployedMessagesWidget';
 import MoreWidget from './components/MoreWidget';
 import VersionQualityView from './components/VersionQualityView';
+import CrashlyticsModal from './components/CrashlyticsModal';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -145,6 +146,7 @@ export default function App() {
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
   const [isStuckTasksModalOpen, setIsStuckTasksModalOpen] = useState(false);
   const [isNewItemsModalOpen, setIsNewItemsModalOpen] = useState(false);
+  const [isCrashlyticsModalOpen, setIsCrashlyticsModalOpen] = useState(false);
   const [insightsTotalStuck, setInsightsTotalStuck] = useState<number | null>(null);
   const releaseVersionsCount = useMemo(() => {
     const versions = new Set<string>();
@@ -382,15 +384,17 @@ export default function App() {
               trend="neutral"
             />
           </div>
-          <KpiCard
-            title="Crash-Free Users"
-            value="99.8%"
-            sub="Last 7 days (Firebase)"
-            icon={<Activity className="w-[18px] h-[18px]" style={{ color: '#16744a' }} />}
-            iconBg="#e9f7ef"
-            accentColor="#1fb893"
-            trend="up"
-          />
+          <div onClick={() => setIsCrashlyticsModalOpen(true)} className="cursor-pointer">
+            <KpiCard
+              title="Crash-Free Users"
+              value="99.8%"
+              sub="Last 7 days (Firebase)"
+              icon={<Activity className="w-[18px] h-[18px]" style={{ color: '#16744a' }} />}
+              iconBg="#e9f7ef"
+              accentColor="#1fb893"
+              trend="up"
+            />
+          </div>
           <div onClick={() => setIsStuckTasksModalOpen(true)} className="cursor-pointer">
             <KpiCard
               title="Stuck Tasks"
@@ -613,10 +617,15 @@ export default function App() {
 
       {/* NEW ITEMS MODAL */}
       {isNewItemsModalOpen && (
-        <NewItemsModal 
+        <NewItemsModal
           issues={issues}
           onClose={() => setIsNewItemsModalOpen(false)}
         />
+      )}
+
+      {/* CRASHLYTICS MODAL */}
+      {isCrashlyticsModalOpen && (
+        <CrashlyticsModal onClose={() => setIsCrashlyticsModalOpen(false)} />
       )}
     </div>
   );
