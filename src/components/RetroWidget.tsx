@@ -107,7 +107,7 @@ export default function RetroWidget({ filter = 'v1', activeSprintName }: Props) 
   const [draftSprintName, setDraftSprintName] = useState('');
   const [sendStatus, setSendStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
   const [channels, setChannels] = useState<{ id: string; name: string }[]>([]);
-  const [selectedChannel, setSelectedChannel] = useState('');
+  const [selectedChannel, setSelectedChannel] = useState(() => localStorage.getItem(`retro_channel_${filter}`) ?? '');
   const [clearedColumn, setClearedColumn] = useState<ColumnKey | null>(null);
   const [editingItem, setEditingItem] = useState<{ col: ColumnKey; id: string } | null>(null);
   const [editText, setEditText] = useState('');
@@ -117,12 +117,19 @@ export default function RetroWidget({ filter = 'v1', activeSprintName }: Props) 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const addInputRef = useRef<HTMLInputElement>(null);
 
+  function updateChannel(value: string) {
+    setSelectedChannel(value);
+    localStorage.setItem(`retro_channel_${filter}`, value);
+  }
+
   useEffect(() => {
     fetch('/api/slack/channels')
       .then(r => r.ok ? r.json() : [])
       .then((list: { id: string; name: string }[]) => {
         setChannels(list);
-        if (list.length > 0) setSelectedChannel(list[0].id);
+        if (list.length > 0 && !localStorage.getItem(`retro_channel_${filter}`)) {
+          updateChannel(list[0].id);
+        }
       })
       .catch(() => {});
   }, []);
@@ -350,7 +357,7 @@ export default function RetroWidget({ filter = 'v1', activeSprintName }: Props) 
           {channels.length > 0 ? (
             <select
               value={selectedChannel}
-              onChange={e => setSelectedChannel(e.target.value)}
+              onChange={e => updateChannel(e.target.value)}
               className="text-xs rounded-lg border px-2 py-1.5 outline-none focus:ring-1 focus:ring-violet-400 bg-white text-slate-600"
               style={{ borderColor: '#e2e8f0' }}
             >
@@ -361,7 +368,7 @@ export default function RetroWidget({ filter = 'v1', activeSprintName }: Props) 
           ) : (
             <input
               value={selectedChannel}
-              onChange={e => setSelectedChannel(e.target.value)}
+              onChange={e => updateChannel(e.target.value)}
               placeholder="#channel"
               className="text-xs rounded-lg border px-2 py-1.5 outline-none focus:ring-1 focus:ring-violet-400 bg-white text-slate-600 w-48"
               style={{ borderColor: '#e2e8f0' }}
