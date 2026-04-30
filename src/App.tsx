@@ -20,6 +20,7 @@ import SprintBriefingWidget from './components/SprintBriefingWidget';
 import DeployedMessagesWidget from './components/DeployedMessagesWidget';
 import MoreWidget from './components/MoreWidget';
 import VersionQualityView from './components/VersionQualityView';
+import AutomationResultsView from './components/AutomationResultsView';
 import RetroWidget from './components/RetroWidget';
 import CrashlyticsModal from './components/CrashlyticsModal';
 
@@ -114,7 +115,7 @@ function FilterImageDropdown({ value, onChange }: { value: string; onChange: (v:
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'briefing' | 'versions' | 'more' | 'retro'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'briefing' | 'versions' | 'automation' | 'more' | 'retro'>('dashboard');
   const [isMasterPromptOpen, setIsMasterPromptOpen] = useState(false);
   const [filter, setFilter] = useState('v1');
   const handleFilterChange = (newFilter: string) => {
@@ -294,6 +295,15 @@ export default function App() {
                 )}
               >
                 Version Quality
+              </button>
+              <button
+                onClick={() => setActiveTab('automation')}
+                className={cn(
+                  "px-4 flex items-center text-sm font-medium border-b-2 transition-colors",
+                  activeTab === 'automation' ? "border-violet-500 text-slate-900" : "border-transparent text-slate-400 hover:text-slate-600"
+                )}
+              >
+                Automation
               </button>
               <button
                 onClick={() => setActiveTab('more')}
@@ -567,6 +577,8 @@ export default function App() {
           <SprintBriefingWidget key={filter} issues={issues} activeSprintName={activeSprintName} filter={filter} />
         ) : activeTab === 'versions' ? (
           <VersionQualityView />
+        ) : activeTab === 'automation' ? (
+          <AutomationResultsView />
         ) : activeTab === 'retro' ? (
           <RetroWidget filter={filter} />
         ) : (
